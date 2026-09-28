@@ -1,0 +1,15 @@
+.env
+.env.*
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.memkernel/
+*.db
+*.db-wal
+*.db-shm
+build/
+dist/
+.venv/
+venv/
+!evidence/**/memkernel.db

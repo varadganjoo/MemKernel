@@ -1,0 +1,255 @@
+[
+ {
+  "event_id": 1,
+  "sequence": 1,
+  "timestamp": "2026-09-28T16:17:33.824945+00:00",
+  "branch_id": "main",
+  "agent_id": "claude-code-cli",
+  "parent_event_id": null,
+  "event_type": "AGENT_TASK_INIT",
+  "payload": {
+   "constraints": [
+    "Money rounded to cents with ROUND_HALF_UP",
+    "Run tests: python -m unittest -v"
+   ],
+   "directive": "Make failing tests pass: fix src/pricing.py money rounding (ROUND_HALF_UP to cents)."
+  },
+  "metadata": {},
+  "hash": "c0a1dac741511f20c0f89ef07a6eb47aefd47607241442b224bf6075a42ca3c7"
+ },
+ {
+  "event_id": 2,
+  "sequence": 2,
+  "timestamp": "2026-09-28T16:17:34.242972+00:00",
+  "branch_id": "main",
+  "agent_id": "claude-code-cli",
+  "parent_event_id": 1,
+  "event_type": "FILE_CLAIM_ACQUIRED",
+  "payload": {
+   "expires_at": 1790612854.2375066,
+   "fencing_token": 1,
+   "resource": "src/pricing.py",
+   "ttl_seconds": 600.0
+  },
+  "metadata": {},
+  "hash": "fa0d614b51b76368d0b8c7036155bf3a0cbb864a7893125b23f7e89ee4804339"
+ },
+ {
+  "event_id": 3,
+  "sequence": 3,
+  "timestamp": "2026-09-28T16:17:36.336477+00:00",
+  "branch_id": "main",
+  "agent_id": "codex-cli",
+  "parent_event_id": 2,
+  "event_type": "AGENT_TASK_INIT",
+  "payload": {
+   "constraints": [
+    "Run tests with python -m unittest -v",
+    "Check for venv before using Python libraries",
+    "Acquire file leases before edits and release after verification",
+    "Log every test run to memkernel"
+   ],
+   "directive": "Make failing unittest suite pass, starting with src/pricing.py and falling back to src/inventory.py only if pricing lease is denied."
+  },
+  "metadata": {},
+  "hash": "467f04c0de0def0f8a3cd1f8bd7f22e3d061fc8b43f9a886878b3cc85537f757"
+ },
+ {
+  "event_id": 4,
+  "sequence": 4,
+  "timestamp": "2026-09-28T16:17:42.501830+00:00",
+  "branch_id": "main",
+  "agent_id": "codex-cli",
+  "parent_event_id": 3,
+  "event_type": "FILE_CLAIM_ACQUIRED",
+  "payload": {
+   "expires_at": 1790612862.4975102,
+   "fencing_token": 1,
+   "resource": "src/inventory.py",
+   "ttl_seconds": 600.0
+  },
+  "metadata": {},
+  "hash": "d8d73ce2adf6bc6e4a2514ba026b561837e6729aa0d14bbc1ae59bfb87d5488d"
+ },
+ {
+  "event_id": 5,
+  "sequence": 5,
+  "timestamp": "2026-09-28T16:17:50.657838+00:00",
+  "branch_id": "main",
+  "agent_id": "claude-code-cli",
+  "parent_event_id": 4,
+  "event_type": "TOOL_EXECUTION_LOG",
+  "payload": {
+   "command": "python -m unittest -v tests.test_pricing",
+   "exit_code": 0,
+   "output": "Ran 2 tests in 0.000s\\nOK"
+  },
+  "metadata": {},
+  "hash": "b8ce558c430abce636f13f21812ef39db36d047e67f4aab30fbe71dd2c7f0b3b"
+ },
+ {
+  "event_id": 6,
+  "sequence": 6,
+  "timestamp": "2026-09-28T16:17:52.573290+00:00",
+  "branch_id": "main",
+  "agent_id": "claude-code-cli",
+  "parent_event_id": 5,
+  "event_type": "ARCHITECTURAL_DECISION",
+  "payload": {
+   "decision_key": "money.rounding",
+   "decision_value": "ROUND_HALF_UP quantized to Decimal(\"0.01\") (cents)",
+   "rationale": "Python round() uses banker's rounding (HALF_EVEN); 0.125 -> 0.12. Invoices need half-up -> 0.13. Use Decimal.quantize with ROUND_HALF_UP."
+  },
+  "metadata": {},
+  "hash": "df7310b4540c1dfe6002a612f57291e115939be5e5d1f3e8b94b69d68294dad3"
+ },
+ {
+  "event_id": 7,
+  "sequence": 7,
+  "timestamp": "2026-09-28T16:17:53.029565+00:00",
+  "branch_id": "main",
+  "agent_id": "claude-code-cli",
+  "parent_event_id": 6,
+  "event_type": "FILE_CLAIM_RELEASED",
+  "payload": {
+   "fencing_token": 1,
+   "resource": "src/pricing.py"
+  },
+  "metadata": {},
+  "hash": "ef4086483f1137e96fff2ed14cbe5282f1125bd9da61a64c93a1c4eff0728742"
+ },
+ {
+  "event_id": 8,
+  "sequence": 8,
+  "timestamp": "2026-09-28T16:18:05.684998+00:00",
+  "branch_id": "main",
+  "agent_id": "codex-cli",
+  "parent_event_id": 7,
+  "event_type": "TOOL_EXECUTION_LOG",
+  "payload": {
+   "command": "python -m unittest -v",
+   "exit_code": 1,
+   "output": "test_refuses_to_oversell (tests.test_inventory.InventoryTest.test_refuses_to_oversell) ... FAIL\ntest_reserves_available_stock (tests.test_inventory.InventoryTest.test_reserves_available_stock) ... ok\ntest_multiplies_quantity (tests.test_pricing.PricingTest.test_multiplies_quantity) ... ok\ntest_rounds_half_up_to_cents (tests.test_pricing.PricingTest.test_rounds_half_up_to_cents) ... ok\n\nFAIL: test_refuses_to_oversell (tests.test_inventory.InventoryTest.test_refuses_to_oversell)\nAssertionError: ValueError not raised\n\nRan 4 tests in 0.001s\nFAILED (failures=1)"
+  },
+  "metadata": {},
+  "hash": "fa1e811a7006208a159643b6bef82a0edfa470eb7403192b90fd5f32db9ec080"
+ },
+ {
+  "event_id": 9,
+  "sequence": 9,
+  "timestamp": "2026-09-28T16:18:21.243364+00:00",
+  "branch_id": "main",
+  "agent_id": "codex-cli",
+  "parent_event_id": 8,
+  "event_type": "ARCHITECTURAL_DECISION",
+  "payload": {
+   "decision_key": "inventory.oversell_policy",
+   "decision_value": "reserve() must reject negative quantities and raise ValueError when requested quantity exceeds available stock, treating missing SKUs as zero available.",
+   "rationale": "Prevents reservations from creating negative inventory or using negative quantities as implicit restocks while preserving the existing copy-and-decrement behavior for valid reservations."
+  },
+  "metadata": {},
+  "hash": "dd8e8a2b44bd24d9090acf0c6321cb9cfd79cc7a72bbe759fd1a4008acb9b1c4"
+ },
+ {
+  "event_id": 10,
+  "sequence": 10,
+  "timestamp": "2026-09-28T16:18:28.859555+00:00",
+  "branch_id": "main",
+  "agent_id": "codex-cli",
+  "parent_event_id": 9,
+  "event_type": "TOOL_EXECUTION_LOG",
+  "payload": {
+   "command": "python -m unittest -v",
+   "exit_code": 0,
+   "output": "test_refuses_to_oversell (tests.test_inventory.InventoryTest.test_refuses_to_oversell) ... ok\ntest_reserves_available_stock (tests.test_inventory.InventoryTest.test_reserves_available_stock) ... ok\ntest_multiplies_quantity (tests.test_pricing.PricingTest.test_multiplies_quantity) ... ok\ntest_rounds_half_up_to_cents (tests.test_pricing.PricingTest.test_rounds_half_up_to_cents) ... ok\n\nRan 4 tests in 0.000s\nOK"
+  },
+  "metadata": {},
+  "hash": "b5add673a35916542761ce76da9bb52ce1bc85bcc0b72924562dd59229134bd1"
+ },
+ {
+  "event_id": 11,
+  "sequence": 11,
+  "timestamp": "2026-09-28T16:18:35.822957+00:00",
+  "branch_id": "main",
+  "agent_id": "codex-cli",
+  "parent_event_id": 10,
+  "event_type": "FILE_CLAIM_RELEASED",
+  "payload": {
+   "fencing_token": 1,
+   "resource": "src/inventory.py"
+  },
+  "metadata": {},
+  "hash": "3ddb60a8653f91e169e8115e236635552c726b2d3c4adaec26675e38a401353c"
+ },
+ {
+  "event_id": 12,
+  "sequence": 12,
+  "timestamp": "2026-09-28T16:19:12.645097+00:00",
+  "branch_id": "main",
+  "agent_id": "antigravity",
+  "parent_event_id": 11,
+  "event_type": "TOOL_EXECUTION_LOG",
+  "payload": {
+   "command": "review",
+   "exit_code": 0,
+   "facts": {
+    "reviewed_by": "antigravity"
+   },
+   "output": "reviewed shared memory"
+  },
+  "metadata": {},
+  "hash": "4cbe5a254925cf5974e49f177138c710fe7e18721bd41bf21824dbbcb38586a6"
+ },
+ {
+  "event_id": 13,
+  "sequence": 13,
+  "timestamp": "2026-09-28T16:19:15.522266+00:00",
+  "branch_id": "experiment-float-money",
+  "agent_id": "antigravity",
+  "parent_event_id": 12,
+  "event_type": "BRANCH_FORKED",
+  "payload": {
+   "fork_point_event_id": 12,
+   "fork_point_sequence": 12,
+   "reason": "investigation",
+   "source_branch": "main"
+  },
+  "metadata": {},
+  "hash": "9fe3d1067925ff4f31ba8df584dd6d922fec3e4b3747ecf0432c7ea7871fc218"
+ },
+ {
+  "event_id": 14,
+  "sequence": 14,
+  "timestamp": "2026-09-28T16:19:16.979263+00:00",
+  "branch_id": "experiment-float-money",
+  "agent_id": "antigravity",
+  "parent_event_id": 13,
+  "event_type": "ARCHITECTURAL_DECISION",
+  "payload": {
+   "decision_key": "money.rounding",
+   "decision_value": "binary float",
+   "rationale": "experiment"
+  },
+  "metadata": {},
+  "hash": "7764ce2487a3db7d04ed828854f0e937386e61f79cfe4ff61e09ecba3ad729ef"
+ },
+ {
+  "event_id": 15,
+  "sequence": 15,
+  "timestamp": "2026-09-28T16:19:25.730013+00:00",
+  "branch_id": "experiment-float-money",
+  "agent_id": "antigravity",
+  "parent_event_id": 14,
+  "event_type": "ROLLBACK_TRIGGERED",
+  "payload": {
+   "reason": "requested via MCP",
+   "reverted_event_ids": [
+    14
+   ],
+   "target_event_id": 13,
+   "target_sequence": 13
+  },
+  "metadata": {},
+  "hash": "d718408e6cc2fe8bea7fccae33a54586d2dee33ac059d44d9b75f8569ce2be45"
+ }
+]

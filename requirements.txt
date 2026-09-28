@@ -1,0 +1,6 @@
+mcp>=1.30
+aiosqlite>=0.22
+pydantic>=2.13
+tiktoken>=0.14
+pytest>=9.1
+pytest-asyncio>=1.4

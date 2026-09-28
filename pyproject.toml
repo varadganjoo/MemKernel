@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memkernel"
+version = "0.1.0"
+description = "Event-sourced, branchable memory kernel and MCP server for multi-agent coding systems"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Varad Ganjoo" }]
+keywords = ["mcp", "agents", "memory", "event-sourcing", "sqlite", "llm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+    "mcp>=1.30",
+    "aiosqlite>=0.22",
+    "pydantic>=2.13",
+    "tiktoken>=0.14",
+]
+
+[project.urls]
+Homepage = "https://github.com/varadganjoo/memkernel"
+Repository = "https://github.com/varadganjoo/memkernel"
+Issues = "https://github.com/varadganjoo/memkernel/issues"
+Documentation = "https://github.com/varadganjoo/memkernel/blob/main/docs/integrations.md"
+Whitepaper = "https://github.com/varadganjoo/memkernel/blob/main/docs/whitepaper.md"
+
+[project.optional-dependencies]
+dev = ["pytest>=9.1", "pytest-asyncio>=1.4"]
+
+[project.scripts]
+memkernel = "memkernel.cli:main"
+memkernel-server = "memkernel.server.mcp_server:main"
+
+[tool.setuptools.packages.find]
+include = ["memkernel*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+filterwarnings = ["error::pytest.PytestUnraisableExceptionWarning", "error::DeprecationWarning"]

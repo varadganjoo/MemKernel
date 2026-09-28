@@ -1,0 +1,27 @@
+test_refuses_to_oversell (tests.test_inventory.InventoryTest.test_refuses_to_oversell) ... FAIL
+test_reserves_available_stock (tests.test_inventory.InventoryTest.test_reserves_available_stock) ... ok
+test_multiplies_quantity (tests.test_pricing.PricingTest.test_multiplies_quantity) ... ok
+test_rounds_half_up_to_cents (tests.test_pricing.PricingTest.test_rounds_half_up_to_cents) ... FAIL
+
+======================================================================
+FAIL: test_refuses_to_oversell (tests.test_inventory.InventoryTest.test_refuses_to_oversell)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\memkernel-live-4\shop\tests\test_inventory.py", line 11, in test_refuses_to_oversell
+    with self.assertRaises(ValueError):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_rounds_half_up_to_cents (tests.test_pricing.PricingTest.test_rounds_half_up_to_cents)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\memkernel-live-4\shop\tests\test_pricing.py", line 9, in test_rounds_half_up_to_cents
+    self.assertEqual(line_total("0.125", 1), Decimal("0.13"))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Decimal('0.12') != Decimal('0.13')
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.002s
+
+FAILED (failures=2)

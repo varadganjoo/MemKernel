@@ -1,0 +1,44 @@
+Here is the summary of the executed `memkernel` operations and results:
+
+---
+
+### 1. Existing Decisions (`main` branch)
+
+From calling [`memkernel_query_state`](file:///~/.gemini/antigravity-cli/mcp/memkernel/memkernel_query_state.json):
+
+| Decision Key | Value | Rationale | Recorded By (`agent_id`) |
+| :--- | :--- | :--- | :--- |
+| `inventory.oversell_policy` | `reserve() must reject negative quantities and raise ValueError when requested quantity exceeds available stock, treating missing SKUs as zero available.` | Prevents reservations from creating negative inventory or using negative quantities as implicit restocks while preserving the existing copy-and-decrement behavior for valid reservations. | `codex-cli` |
+| `money.rounding` | `ROUND_HALF_UP quantized to Decimal("0.01") (cents)` | Python `round()` uses banker's rounding (`HALF_EVEN`); `0.125 -> 0.12`. Invoices need half-up -> `0.13`. Use `Decimal.quantize` with `ROUND_HALF_UP`. | `claude-code-cli` |
+
+---
+
+### 2. Workspace Fact Logged
+
+Called [`memkernel_log_execution`](file:///~/.gemini/antigravity-cli/mcp/memkernel/memkernel_log_execution.json):
+* **Command:** `"review"`
+* **Exit Code:** `0`
+* **Output:** `"reviewed shared memory"`
+* **Facts:** `{"reviewed_by": "antigravity"}`
+* **Result:** Recorded as event `#12` on branch `main`.
+
+---
+
+### 3. Investigation Branch & Safe Rollback
+
+1. **Fork Branch:** Called [`memkernel_fork_investigation`](file:///~/.gemini/antigravity-cli/mcp/memkernel/memkernel_fork_investigation.json) with `fork_branch_name: "experiment-float-money"`.
+   * Created `BRANCH_FORKED` event `#13` (fork point event `#12`).
+2. **Experimental Decision:** Called [`memkernel_append_decision`](file:///~/.gemini/antigravity-cli/mcp/memkernel/memkernel_append_decision.json) with `decision_key: "money.rounding"`, `decision_value: "binary float"`, `rationale: "experiment"`.
+   * Recorded as event `#14` on branch `experiment-float-money`.
+3. **History Inspection:** Called [`memkernel_history`](file:///~/.gemini/antigravity-cli/mcp/memkernel/memkernel_history.json) to locate the `BRANCH_FORKED` event ID (`13`).
+4. **Rollback:** Called [`memkernel_rollback`](file:///~/.gemini/antigravity-cli/mcp/memkernel/memkernel_rollback.json) targeting event `13`.
+   * Reverted event `[14]` and logged `ROLLBACK_TRIGGERED` as event `#15`.
+
+---
+
+### 4. Query State on `experiment-float-money`
+
+Called [`memkernel_query_state`](file:///~/.gemini/antigravity-cli/mcp/memkernel/memkernel_query_state.json) with `branch_id: "experiment-float-money"`.
+
+* **Current Value of `money.rounding`:**
+  `ROUND_HALF_UP quantized to Decimal("0.01") (cents)` (restored from event `#6` by `claude-code-cli` after rolling back the experimental change).

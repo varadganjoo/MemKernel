@@ -1,0 +1,31 @@
+diff --git a/src/inventory.py b/src/inventory.py
+index 7391e8c..561e215 100644
+--- a/src/inventory.py
++++ b/src/inventory.py
+@@ -1,5 +1,12 @@
+ def reserve(stock: dict[str, int], sku: str, qty: int) -> dict[str, int]:
+     """Reserve ``qty`` units of ``sku``; raise ValueError if stock is insufficient."""
++    if qty < 0:
++        raise ValueError("qty must be non-negative")
++
++    available = stock.get(sku, 0)
++    if available < qty:
++        raise ValueError("insufficient stock")
++
+     updated = dict(stock)
+-    updated[sku] = updated.get(sku, 0) - qty
++    updated[sku] = available - qty
+     return updated
+diff --git a/src/pricing.py b/src/pricing.py
+index 9a9da50..cd26ac5 100644
+--- a/src/pricing.py
++++ b/src/pricing.py
+@@ -1,6 +1,6 @@
+-from decimal import Decimal
++from decimal import Decimal, ROUND_HALF_UP
+ 
+ 
+ def line_total(unit_price: str, qty: int) -> Decimal:
+     """Price of ``qty`` units, rounded to whole cents (half up, as on invoices)."""
+-    return round(Decimal(unit_price) * qty, 2)
++    return (Decimal(unit_price) * qty).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)

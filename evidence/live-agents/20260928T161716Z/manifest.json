@@ -1,0 +1,172 @@
+{
+  "run_id": "20260928T161716Z",
+  "started_utc": "2026-09-28T16:17:17+00:00",
+  "platform": "win32",
+  "python": "3.14.7",
+  "tools": {
+    "claude": "2.1.195 (Claude Code)",
+    "codex": "codex-cli 0.142.3",
+    "agy": "1.2.12"
+  },
+  "gc_threshold": 1500,
+  "tests_before_exit_code": 1,
+  "prompts": {
+    "claude-fix": "You are one of several AI coding agents working on this repository at the same time.\nYou share memory with the other agents through the `memkernel` MCP tools. Rules:\n1. Start by calling memkernel_query_state.\n2. Before editing any file, call memkernel_acquire_lease on it (timeout_seconds 600). If the\n   result has acquired=false, another agent owns that file: do NOT edit it; choose other work.\n   Hold a lease until your change passes the tests, then release it with memkernel_release_lease.\n3. After every test run, call memkernel_log_execution with the command, the exit code and the\n   last lines of output.\n4. Record each design choice with memkernel_append_decision.\nRun the tests with: python -m unittest -v\n\nYour task: make the failing tests pass. Begin with src/pricing.py (tests/test_pricing.py).\nCall memkernel_init_task first with a one-line directive. Money must be rounded to cents with\nROUND_HALF_UP; record that as decision_key \"money.rounding\". If the lease on src/pricing.py is\ndenied, fix src/inventory.py instead and record your policy as decision_key\n\"inventory.oversell_policy\". Finish with one line saying which file you fixed.\n",
+    "codex-fix": "You are one of several AI coding agents working on this repository at the same time.\nYou share memory with the other agents through the `memkernel` MCP tools. Rules:\n1. Start by calling memkernel_query_state.\n2. Before editing any file, call memkernel_acquire_lease on it (timeout_seconds 600). If the\n   result has acquired=false, another agent owns that file: do NOT edit it; choose other work.\n   Hold a lease until your change passes the tests, then release it with memkernel_release_lease.\n3. After every test run, call memkernel_log_execution with the command, the exit code and the\n   last lines of output.\n4. Record each design choice with memkernel_append_decision.\nRun the tests with: python -m unittest -v\n\nYour task: make the failing tests pass. Begin with src/pricing.py. Call memkernel_init_task\nfirst with a one-line directive. If the lease on src/pricing.py is denied, fix src/inventory.py\ninstead and record your policy as decision_key \"inventory.oversell_policy\" (if you fix pricing,\nrecord \"money.rounding\"). Finish with one line saying which file you fixed.\n",
+    "antigravity-review": "You share memory with other AI coding agents through the `memkernel` MCP tools. Use them.\n1. Call memkernel_query_state and list every decision with the agent_id that recorded it.\n2. Record a workspace fact: call memkernel_log_execution with command \"review\", exit_code 0,\n   output \"reviewed shared memory\", and facts {\"reviewed_by\": \"antigravity\"}.\n3. Experiment safely: call memkernel_fork_investigation with fork_branch_name\n   \"experiment-float-money\"; then memkernel_append_decision with decision_key \"money.rounding\",\n   decision_value \"binary float\", rationale \"experiment\"; then memkernel_history; then\n   memkernel_rollback with target_event_id set to the event_id of the BRANCH_FORKED event.\n4. Call memkernel_query_state with branch_id \"experiment-float-money\" and report the value of\n   money.rounding. Do not edit files or run shell commands; use only the memkernel tools.\n",
+    "claude-recall": "New session. Do NOT read or edit any files. Using only the memkernel MCP tools\n(memkernel_query_state, memkernel_list_branches, memkernel_history), answer:\n(a) which agent recorded which decisions, (b) whether any execution blockers remain,\n(c) which branches exist and what the last test run's exit code was.\nAnswer in at most six lines.\n"
+  },
+  "runs": [
+    {
+      "agent_run": "claude-fix",
+      "exit_code": 0,
+      "seconds": 40.1
+    },
+    {
+      "agent_run": "codex-fix",
+      "exit_code": 0,
+      "seconds": 82.0
+    },
+    {
+      "agent_run": "antigravity-review",
+      "exit_code": 0,
+      "seconds": 58.8
+    },
+    {
+      "agent_run": "claude-recall",
+      "exit_code": 0,
+      "seconds": 23.2
+    }
+  ],
+  "antigravity_config_restored": true,
+  "tests_after_exit_code": 0,
+  "finished_utc": "2026-09-28T16:20:03+00:00",
+  "database": {
+    "branches": {
+      "main": {
+        "head_event_id": 12,
+        "raw_events": 12,
+        "live_events": 12,
+        "hash_chain_problems": [],
+        "decisions": {
+          "money.rounding": {
+            "value": "ROUND_HALF_UP quantized to Decimal(\"0.01\") (cents)",
+            "agent_id": "claude-code-cli",
+            "event_id": 6
+          },
+          "inventory.oversell_policy": {
+            "value": "reserve() must reject negative quantities and raise ValueError when requested quantity exceeds available stock, treating missing SKUs as zero available.",
+            "agent_id": "codex-cli",
+            "event_id": 9
+          }
+        },
+        "execution_blockers": []
+      },
+      "experiment-float-money": {
+        "head_event_id": 15,
+        "raw_events": 15,
+        "live_events": 14,
+        "hash_chain_problems": [],
+        "decisions": {
+          "money.rounding": {
+            "value": "ROUND_HALF_UP quantized to Decimal(\"0.01\") (cents)",
+            "agent_id": "claude-code-cli",
+            "event_id": 6
+          },
+          "inventory.oversell_policy": {
+            "value": "reserve() must reject negative quantities and raise ValueError when requested quantity exceeds available stock, treating missing SKUs as zero available.",
+            "agent_id": "codex-cli",
+            "event_id": 9
+          }
+        },
+        "execution_blockers": []
+      }
+    },
+    "events_total": 15,
+    "events_by_agent": {
+      "antigravity": 4,
+      "claude-code-cli": 5,
+      "codex-cli": 6
+    },
+    "events_by_type": {
+      "AGENT_TASK_INIT": 2,
+      "ARCHITECTURAL_DECISION": 3,
+      "BRANCH_FORKED": 1,
+      "FILE_CLAIM_ACQUIRED": 2,
+      "FILE_CLAIM_RELEASED": 2,
+      "ROLLBACK_TRIGGERED": 1,
+      "TOOL_EXECUTION_LOG": 4
+    },
+    "leases_granted": [
+      {
+        "agent_id": "claude-code-cli",
+        "resource": "src/pricing.py",
+        "fencing_token": 1,
+        "event_id": 2
+      },
+      {
+        "agent_id": "codex-cli",
+        "resource": "src/inventory.py",
+        "fencing_token": 1,
+        "event_id": 4
+      }
+    ],
+    "snapshots": [],
+    "rollbacks": [
+      {
+        "agent_id": "antigravity",
+        "branch_id": "experiment-float-money",
+        "target_event_id": 13,
+        "reverted_event_ids": [
+          14
+        ]
+      }
+    ]
+  },
+  "transcripts": {
+    "antigravity-review": {
+      "tool_calls": {},
+      "lease_denials": 0,
+      "structured": false
+    },
+    "claude-fix": {
+      "tool_calls": {
+        "acquire_lease": 1,
+        "append_decision": 1,
+        "init_task": 1,
+        "log_execution": 1,
+        "query_state": 1,
+        "release_lease": 1
+      },
+      "lease_denials": 0,
+      "structured": true
+    },
+    "claude-recall": {
+      "tool_calls": {
+        "list_branches": 1,
+        "query_state": 2
+      },
+      "lease_denials": 0,
+      "structured": true
+    },
+    "codex-fix": {
+      "tool_calls": {
+        "acquire_lease": 2,
+        "append_decision": 1,
+        "init_task": 1,
+        "log_execution": 2,
+        "query_state": 1,
+        "release_lease": 1
+      },
+      "lease_denials": 1,
+      "structured": true
+    }
+  },
+  "docker_verification": {
+    "image": "python:3.14-slim",
+    "result": {
+      "main": [],
+      "experiment-float-money": []
+    }
+  }
+}

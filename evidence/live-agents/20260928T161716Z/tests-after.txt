@@ -1,0 +1,9 @@
+test_refuses_to_oversell (tests.test_inventory.InventoryTest.test_refuses_to_oversell) ... ok
+test_reserves_available_stock (tests.test_inventory.InventoryTest.test_reserves_available_stock) ... ok
+test_multiplies_quantity (tests.test_pricing.PricingTest.test_multiplies_quantity) ... ok
+test_rounds_half_up_to_cents (tests.test_pricing.PricingTest.test_rounds_half_up_to_cents) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.001s
+
+OK
