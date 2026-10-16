@@ -105,6 +105,13 @@ async def test_stdio_end_to_end_two_processes(db_path: str) -> None:
         assert state["state"]["decisions"]["db"]["value"] == "postgres"
         assert state["state"]["active_claims"]["src/models.py"]["agent_id"] == "cursor-ide"
 
+        # Tokens are visible shared state, not credentials. Another identity
+        # must not be able to prolong the holder's claim with a known token.
+        assert await codex.call("memkernel_heartbeat_lease", file_path="src/models.py",
+                                fencing_token=grant["fencing_token"]) is False
+        assert await cursor.call("memkernel_heartbeat_lease", file_path="src/models.py",
+                                 fencing_token=grant["fencing_token"]) is True
+
         assert await cursor.call("memkernel_release_lease", file_path="src/models.py",
                                  fencing_token=grant["fencing_token"]) is True
         regrant = await codex.call("memkernel_acquire_lease", file_path="src/models.py")

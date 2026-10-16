@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sqlite3
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
@@ -46,6 +47,19 @@ from memkernel.core.events import (
 from memkernel.memory.state_view import SNAPSHOT_SCHEMA, WorkspaceState, split_context
 
 SCHEMA_VERSION = 1
+
+
+def _read_only_authorizer(
+    action: int, arg1: str | None, arg2: str | None, _database: str | None, _trigger: str | None
+) -> int:
+    # mode=ro applies to the main database only. An attached connection to
+    # the same file could otherwise reopen it writable after query_only=OFF.
+    if action in {sqlite3.SQLITE_ATTACH, sqlite3.SQLITE_DETACH}:
+        return sqlite3.SQLITE_DENY
+    if action == sqlite3.SQLITE_PRAGMA and arg1.lower() == "query_only" and arg2 is not None:
+        return sqlite3.SQLITE_DENY
+    return sqlite3.SQLITE_OK
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS branches (
@@ -186,6 +200,7 @@ class AsyncEventStore:
         synchronous: str = "NORMAL",
         busy_timeout_ms: int = 15_000,
         clock: Callable[[], datetime] = utcnow,
+        read_only: bool = False,
     ) -> None:
         if synchronous.upper() not in {"OFF", "NORMAL", "FULL", "EXTRA"}:
             raise ValueError(f"invalid synchronous mode {synchronous!r}")
@@ -193,6 +208,7 @@ class AsyncEventStore:
         self._synchronous = synchronous.upper()
         self._busy_timeout_ms = int(busy_timeout_ms)
         self._clock = clock
+        self.read_only = read_only
         self._db: aiosqlite.Connection | None = None
         self._lock: asyncio.Lock | None = None
         self.journal_mode: str | None = None
@@ -202,13 +218,29 @@ class AsyncEventStore:
     async def open(self) -> "AsyncEventStore":
         if self._db is not None:
             return self
-        if self.path != ":memory:" and not self.path.startswith("file:"):
+        if self.read_only:
+            # Construct the URI ourselves: caller-supplied URI parameters must
+            # never turn a read-only open into a writable/create connection.
+            if self.path == ":memory:" or self.path.startswith("file:"):
+                raise StoreError("read-only mode requires an existing local database file path")
+            connect_path = Path(self.path).expanduser().resolve().as_uri() + "?mode=ro"
+        else:
+            connect_path = self.path
+        if not self.read_only and self.path != ":memory:" and not self.path.startswith("file:"):
             Path(self.path).expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
         self._lock = asyncio.Lock()
-        db = await aiosqlite.connect(self.path, isolation_level=None)
+        try:
+            db = await aiosqlite.connect(connect_path, isolation_level=None, uri=self.read_only)
+        except sqlite3.OperationalError as exc:
+            if self.read_only:
+                raise StoreError("cannot open read-only database; initialize it with a writable session first") from exc
+            raise
         try:
             await db.execute(f"PRAGMA busy_timeout = {self._busy_timeout_ms}")
-            async with db.execute("PRAGMA journal_mode = WAL") as cur:
+            if self.read_only:
+                await db.execute("PRAGMA query_only = ON")
+                await db.set_authorizer(_read_only_authorizer)
+            async with db.execute("PRAGMA journal_mode" if self.read_only else "PRAGMA journal_mode = WAL") as cur:
                 row = await cur.fetchone()
             self.journal_mode = str(row[0]).lower() if row else None
             await db.execute(f"PRAGMA synchronous = {self._synchronous}")
@@ -216,6 +248,14 @@ class AsyncEventStore:
             async with db.execute("PRAGMA user_version") as cur:
                 row = await cur.fetchone()
             version = int(row[0]) if row else 0
+            if self.read_only:
+                if version != SCHEMA_VERSION:
+                    raise StoreError(
+                        f"read-only database has schema v{version}; expected v{SCHEMA_VERSION}. "
+                        "Initialize or upgrade it with a writable session first."
+                    )
+                self._db = db
+                return self
             if version > SCHEMA_VERSION:
                 raise StoreError(
                     f"database {self.path!r} has schema v{version}; this MemKernel supports "
@@ -252,6 +292,8 @@ class AsyncEventStore:
         """Serialized transaction. ``write=True`` takes SQLite's RESERVED lock
         up front (``BEGIN IMMEDIATE``) so read-modify-write sequences are
         atomic across processes."""
+        if write and self.read_only:
+            raise StoreError("database is read-only; writes are disabled")
         if self._db is None:
             raise StoreError("store is not open; use 'async with AsyncEventStore(...)' or await open()")
         assert self._lock is not None

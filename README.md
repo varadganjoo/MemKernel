@@ -9,7 +9,7 @@ all of them one shared memory with the following properties:
 
 - **Deterministic.** State is a pure fold over an append-only, hash-chained event log. Replaying the log reproduces the state exactly.
 - **Branchable.** Agents fork a timeline to investigate, diff it against `main`, and roll it back when an experiment or a hallucination fails. Forks copy no rows.
-- **Coordinated.** Leases with fencing tokens keep two agents from editing the same file, and a stale writer is rejected at the storage layer.
+- **Coordinated.** Leases coordinate cooperating agents. Fenced event appends reject expired, stale or foreign leases atomically; leases do not prevent direct filesystem edits.
 - **Budgeted.** An autonomous GC compacts noisy tool output into semantic snapshots. In the benchmarks it keeps each agent's context under a token budget while preserving every decision.
 
 It is a plain Python package: SQLite (WAL) for storage, `pydantic` v2 for
@@ -37,6 +37,38 @@ all three operating systems. It works with Claude Code, Codex CLI, Antigravity a
 
 Each agent runs its own server process. All of them share one database file,
 and SQLite's `BEGIN IMMEDIATE` transactions serialize writers across processes.
+
+### Safety and trust boundary
+
+**Experimental software for testing agent capabilities.** Use disposable projects and
+synthetic data first. Incorrect or sensitive memory can persist and affect other agents.
+Review what agents store and act on, redact secrets before logging, and keep backups.
+
+- **One host, one trust domain.** Keep the SQLite database on local disk. Network
+  filesystems, distributed leases and cross-owner authentication are not supported.
+  Agent IDs are self-asserted launch configuration, not proof of identity. Use distinct
+  IDs for cooperating agents and OS permissions to control access to the database,
+  its directory, backups and WAL/SHM files.
+- **Observe without writing.** Launch an observer with
+  `memkernel-server --db /path/to/existing/memkernel.db --read-only`, or set
+  `MEMKERNEL_READ_ONLY=true` in that agent's MCP configuration. This blocks mutation
+  tools and opens an existing database with SQLite `mode=ro`. SQL authorization also
+  blocks database attachment and changes to the read-only query setting. It cannot initialize a
+  missing database or run background GC. Reads may still need SQLite WAL/SHM sidecars.
+  This limits that server process; it does not stop an agent with direct file access
+  from launching another writable process. Restrict that access at the OS level.
+- **Fence resource-associated decisions.** Acquire a lease, renew it while working,
+  then use `memkernel_fenced_append_decision` with its token. The session identity,
+  token and expiry are checked in the same transaction as the memory append. Ordinary
+  memory tools remain unfenced, and direct file writes are outside this protection.
+- **Treat memory as untrusted data.** Stored text is never executed by MemKernel,
+  but downstream agents can still follow injected instructions. Review consequential
+  actions independently. The hash chain detects some tampering; it does not authenticate
+  writers or protect against an attacker who controls the database file.
+
+These controls are a local safety foundation, not an enterprise security certification.
+Deployments spanning owners or machines need authenticated access, authorization and
+operational validation before sharing a memory domain.
 
 ## Quickstart: three commands
 
@@ -112,6 +144,7 @@ python examples/rollback_on_hallucination.py
 | `memkernel_acquire_lease(file_path, timeout_seconds=60)` | Exclusive lease with a TTL. Returns a fencing token, or the current holder. |
 | `memkernel_release_lease(file_path, fencing_token)` | Release. Returns `false` for a stale token. |
 | `memkernel_heartbeat_lease(file_path, fencing_token)` | Extend a held lease. |
+| `memkernel_fenced_append_decision(file_path, fencing_token, decision_key, decision_value, rationale)` | Record a decision only while the session agent holds the current, unexpired lease. The lease is recorded in event metadata. |
 | `memkernel_fork_investigation(fork_branch_name)` | Fork the active branch at its head and switch to it. |
 | `memkernel_checkout(branch_id)` | Switch the session's active branch. |
 | `memkernel_rollback(target_event_id)` | Revert the active branch's live timeline to an event. History stays auditable. |
@@ -155,8 +188,9 @@ GC does not thrash.
 
 **Leases.** Leases are time-bounded, and every grant carries a fencing token
 that strictly increases per resource. `fenced_append` checks the token and
-appends in one transaction, so a writer whose lease expired cannot land a
-write.
+appends in one transaction, so an expired or foreign holder cannot commit
+through that fenced event path. Ordinary memory appends and filesystem writes
+remain outside the fence. Renewals require the configured holder identity.
 
 ## Results
 

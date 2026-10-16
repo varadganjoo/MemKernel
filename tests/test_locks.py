@@ -44,7 +44,7 @@ async def test_lease_expiry_and_fencing(store: AsyncEventStore, clock: FakeClock
     clock.advance(29.9)
     assert await locks.acquire_lock("src/db.py", "agent-b") is None
     clock.advance(0.2)  # lease lapsed
-    assert await locks.heartbeat_lock("src/db.py", t1) is False
+    assert await locks.heartbeat_lock("src/db.py", t1, agent_id="agent-a") is False
     t2 = await locks.acquire_lock("src/db.py", "agent-b", ttl_seconds=30)
     assert t2 == 2 and t2 > t1
 
@@ -63,11 +63,40 @@ async def test_heartbeat_extends_lease(store: AsyncEventStore, clock: FakeClock)
     assert token is not None
     for _ in range(5):
         clock.advance(8)
-        assert await locks.heartbeat_lock("a.py", token) is True
+        assert await locks.heartbeat_lock("a.py", token, agent_id="agent-a") is True
     assert await locks.acquire_lock("a.py", "agent-b") is None
-    assert await locks.heartbeat_lock("a.py", token + 1) is False
+    assert await locks.heartbeat_lock("a.py", token + 1, agent_id="agent-a") is False
     clock.advance(10.01)
     assert await locks.acquire_lock("a.py", "agent-b") == token + 1
+
+
+async def test_heartbeat_requires_holder_and_preserves_expiry(kernel: MemKernel, clock: FakeClock) -> None:
+    grant = await kernel.acquire_lease(branch_id="main", agent_id="owner", resource="src/a.py", ttl_seconds=10)
+    token = grant.fencing_token
+    clock.advance(5)
+    assert not await kernel.heartbeat_lease(resource="./src\\a.py", fencing_token=token, agent_id="other")
+    lease = await kernel.locks.get_lease("src/a.py")
+    assert lease.expires_at == grant.expires_at
+    assert await kernel.heartbeat_lease(resource="./src\\a.py", fencing_token=token, agent_id="owner")
+    assert (await kernel.locks.get_lease("src/a.py")).expires_at == clock() + 10
+    assert await kernel.release_lease(branch_id="main", agent_id="owner", resource="src/a.py", fencing_token=token)
+    assert not await kernel.heartbeat_lease(resource="src/a.py", fencing_token=token, agent_id="owner")
+    assert not await kernel.heartbeat_lease(resource="missing.py", fencing_token=token, agent_id="owner")
+
+
+@pytest.mark.parametrize("token", [True, False, 1.0, "1", 0, -1])
+async def test_fence_tokens_cannot_be_coerced(kernel: MemKernel, token: object) -> None:
+    await kernel.acquire_lease(branch_id="main", agent_id="owner", resource="a.py")
+    with pytest.raises(ValueError, match="positive integer"):
+        await kernel.heartbeat_lease(resource="a.py", fencing_token=token, agent_id="owner")
+    with pytest.raises(ValueError, match="positive integer"):
+        await kernel.release_lease(branch_id="main", agent_id="owner", resource="a.py", fencing_token=token)
+    with pytest.raises(ValueError, match="positive integer"):
+        await kernel.fenced_append(
+            new_event(EventType.AGENT_SCRATCHPAD, branch_id="main", agent_id="owner", payload={"note": "bad"}),
+            resource="a.py", fencing_token=token,
+        )
+    assert (await kernel.locks.get_lease("a.py")).holder_agent_id == "owner"
 
 
 async def test_real_time_expiry(store: AsyncEventStore) -> None:
