@@ -3,7 +3,7 @@ requires = ["setuptools>=80"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "memkernel"
+name = "memkernel-mcp"
 version = "0.1.0"
 description = "Event-sourced, branchable memory kernel and MCP server for multi-agent coding systems"
 readme = "README.md"
@@ -54,3 +54,4 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 filterwarnings = ["error::pytest.PytestUnraisableExceptionWarning", "error::DeprecationWarning"]
+

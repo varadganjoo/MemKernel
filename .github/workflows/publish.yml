@@ -3,7 +3,7 @@ name: Publish to PyPI
 # Publishing a GitHub Release uploads that version to PyPI via Trusted Publishing
 # (OIDC): no API token is stored anywhere. One-time setup on pypi.org:
 # Account settings -> Publishing -> add a pending publisher with
-#   project "memkernel", owner "varadganjoo", repository "memkernel",
+#   project "memkernel-mcp", owner "varadganjoo", repository "MemKernel",
 #   workflow "publish.yml", environment "pypi".
 
 on:
@@ -42,3 +42,4 @@ jobs:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@v1.14.2
+

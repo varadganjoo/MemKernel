@@ -43,10 +43,12 @@ and SQLite's `BEGIN IMMEDIATE` transactions serialize writers across processes.
 **1. Install** (Python 3.14 recommended; 3.11+ supported). `uv tool install` gives you a global `memkernel` command in its own isolated environment:
 
 ```bash
-uv tool install memkernel
+uv tool install memkernel-mcp
 ```
 
-`pipx install memkernel` does the same, and `pip install memkernel` installs into any existing environment.
+`pipx install memkernel-mcp` does the same. For an existing isolated environment, use `pip install memkernel-mcp`.
+
+The distribution is named **`memkernel-mcp`**; the Python import and commands remain `memkernel`. The `memkernel` project on PyPI belongs to a different author. Do not use `pip install memkernel` for this repository, or install both projects into the same Python environment. To install from source instead, use `uv tool install git+https://github.com/varadganjoo/MemKernel.git`.
 
 **2. Attach** it to your agents, from your project's root directory:
 
@@ -225,3 +227,4 @@ MEMKERNEL_LIVE_LLM_TESTS=1 OPENAI_API_KEY=... OPENAI_LLM=<model> pytest -k live
 ## License
 
 MIT. See [LICENSE](https://github.com/varadganjoo/memkernel/blob/main/LICENSE).
+

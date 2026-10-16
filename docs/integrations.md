@@ -3,7 +3,7 @@
 ## The short version
 
 ```bash
-uv tool install memkernel
+uv tool install memkernel-mcp
 ```
 
 Then, from your project root:
@@ -221,3 +221,4 @@ async with McpStdioClient(agent_id="my-harness", db_path=".memkernel/memkernel.d
   commits.
 - **Network filesystems.** SQLite locking is unreliable on NFS/SMB shares. Keep the
   database on a local disk shared by the agents on one machine.
+
