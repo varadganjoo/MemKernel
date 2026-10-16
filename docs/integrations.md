@@ -173,11 +173,48 @@ async with McpStdioClient(agent_id="my-harness", db_path=".memkernel/memkernel.d
 | `MEMKERNEL_BRANCH` / `--branch` | `main` | Branch the session starts on. |
 | `MEMKERNEL_GC_THRESHOLD` / `--gc-threshold` | `4000` | Context-window token budget that triggers compaction. |
 | `MEMKERNEL_GC_INTERVAL` / `--gc-interval` | `0` | Seconds between background GC sweeps (`0` = only GC after writes). |
+| `MEMKERNEL_READ_ONLY` / `--read-only` | `false` | Open an existing database read-only and reject mutation tools. Background GC must be off. Invalid environment values fail startup. |
 | `MEMKERNEL_TOKENIZER` | `auto` | `auto`, `tiktoken` or `heuristic`. |
 | `MEMKERNEL_LOG_LEVEL` / `--log-level` | `WARNING` | Server log level (logs go to stderr; stdout carries MCP). |
 
 `memkernel serve [flags]` and `memkernel-server [flags]` are equivalent to
 `python -m memkernel.server.mcp_server [flags]`.
+
+### Read-only observers
+
+Set `"MEMKERNEL_READ_ONLY": "true"` alongside `MEMKERNEL_DB` and
+`MEMKERNEL_AGENT_ID` in an observer's MCP `env` block. The server supports queries,
+history, branch listing, comparison and session checkout. All event, lease, rollback,
+fork and GC mutations are rejected, including direct calls to listed tools. The
+database must already be initialized by a writable session; read-only startup never
+creates a database, schema or branch. SQLite may need WAL/SHM sidecars to read active WAL
+databases. This policy covers this server connection, not the agent's independent OS
+or database access. Keep different trust domains in separate databases with OS access
+controls. This is not a remote authentication or per-owner authorization service.
+
+### Decisions protected by a lease
+
+After `memkernel_acquire_lease("src/app.py")` succeeds, retain its fencing token and
+renew with `memkernel_heartbeat_lease`. Only the configured holder can renew it.
+Record a resource-associated decision using:
+
+```text
+memkernel_fenced_append_decision(
+  file_path="src/app.py", fencing_token=<token from acquire>,
+  decision_key="app.storage", decision_value="sqlite", rationale="local use"
+)
+```
+
+If renewal or the fenced append fails, stop work and reacquire the lease before
+retrying. The fence protects the appended memory event; it does not enforce file
+locks, undo an earlier edit or guard calls to ordinary unfenced memory tools.
+
+Python API migration: `LockManager.heartbeat_lock(resource, token, agent_id="...")`
+and `MemKernel.heartbeat_lease(resource=..., fencing_token=..., agent_id="...")` now
+require the caller's identity. There is no token-only fallback. The MCP tool signature
+is unchanged: the server supplies its fixed identity, and `MemKernelClient.lease()`
+supplies its client's identity automatically. Fencing tokens must be positive integers;
+booleans, strings and floats are rejected.
 
 ## Troubleshooting
 

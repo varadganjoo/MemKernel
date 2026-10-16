@@ -69,6 +69,12 @@ def validate_ttl(ttl_seconds: float) -> float:
     return float(ttl_seconds)
 
 
+def validate_fencing_token(fencing_token: int) -> int:
+    if isinstance(fencing_token, bool) or not isinstance(fencing_token, int) or fencing_token < 1:
+        raise ValueError("fencing_token must be a positive integer")
+    return fencing_token
+
+
 class LockManager:
     """Lease manager bound to an open :class:`AsyncEventStore`.
 
@@ -96,14 +102,22 @@ class LockManager:
         async with self.store.transaction(write=True) as db:
             return await self.release_in_transaction(db, resource_key, agent_id, fencing_token)
 
-    async def heartbeat_lock(self, resource_key: str, fencing_token: int) -> bool:
-        """Extend an *unexpired* lease by its original TTL. Returns ``False``
-        if the token is stale or the lease already lapsed (lease lost)."""
+    async def heartbeat_lock(self, resource_key: str, fencing_token: int, *, agent_id: str) -> bool:
+        """Extend the caller's *unexpired* lease by its original TTL.
+
+        Tokens are public counters, not credentials. Returns ``False`` for
+        another holder, a stale token or a lease that already lapsed.
+        """
         validate_resource_key(resource_key)
+        validate_agent_id(agent_id)
+        validate_fencing_token(fencing_token)
         async with self.store.transaction(write=True) as db:
             lease = await self.get_in_transaction(db, resource_key)
             now = self.clock()
-            if lease is None or lease.fencing_token != fencing_token or not lease.is_active(now):
+            if (
+                lease is None or lease.holder_agent_id != agent_id
+                or lease.fencing_token != fencing_token or not lease.is_active(now)
+            ):
                 return False
             await db.execute(
                 "UPDATE leases SET expires_at = ? WHERE resource_key = ? AND fencing_token = ?",
@@ -157,6 +171,7 @@ class LockManager:
     ) -> bool:
         validate_resource_key(resource_key)
         validate_agent_id(agent_id)
+        validate_fencing_token(fencing_token)
         lease = await self.get_in_transaction(db, resource_key)
         if lease is None or lease.holder_agent_id != agent_id or lease.fencing_token != fencing_token:
             return False
@@ -171,6 +186,9 @@ class LockManager:
         self, db: aiosqlite.Connection, resource_key: str, fencing_token: int, agent_id: str | None = None
     ) -> bool:
         validate_resource_key(resource_key)
+        validate_fencing_token(fencing_token)
+        if agent_id is not None:
+            validate_agent_id(agent_id)
         lease = await self.get_in_transaction(db, resource_key)
         return (
             lease is not None

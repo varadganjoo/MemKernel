@@ -21,7 +21,7 @@ a branch. Branches share history copy-on-write, and rollbacks are compensating e
 exploration is cheap and every timeline jump is auditable. A token-budgeted garbage
 collector folds ephemeral tool output into semantic snapshots. We prove that these
 snapshots preserve the materialized state exactly, and they carry anti-thrash guarantees.
-Leases with monotonically increasing fencing tokens serialize edits to shared resources
+Leases with monotonically increasing fencing tokens coordinate cooperating agents on shared resources
 across heterogeneous agent processes. The kernel is exposed as a Model Context Protocol
 (MCP) server over stdio, so unmodified IDE agents interoperate through one database file.
 On three deterministic 50-turn workflows, MemKernel reduces the context an agent must load
@@ -598,7 +598,8 @@ of the shared domain. Everything *inside* events is untrusted data.
 | **Forged control state** | `FORKED`/`ROLLBACK` events can only be issued by kernel operations. Snapshots must declare the schema, cover a live event and validate against the state model. | A4 can bypass the kernel entirely (see previous row). |
 | **LLM summarizer poisoning** (A3) | Output is confined to `insights`, sanitized, and capped in length and count. Facts, decisions and blockers remain a pure function of the log. Failure falls back to the heuristic summarizer. | Insights can still mislead. They are labelled as summarizer output in snapshot metadata. |
 | **Context flooding / DoS** (A1, A2) | 256 KiB cap on each event's payload and on its metadata. Rendered tool output is truncated. Bounded snapshot sections. GC with an anti-thrash bound. Validated identifiers. | Many distinct fact or decision keys grow durable state. Operators can monitor `context_tokens`. |
-| **Lost-update on files** (A1) | Leases with fencing tokens, checked atomically with fenced appends (Prop. 3). | Leases are advisory for the filesystem itself. An agent that edits without leasing is not stopped, only visible, because its claims are absent. |
+| **Lost-update on files** (A1) | Leases coordinate cooperating agents; fenced memory appends check holder, token and expiry atomically (Prop. 3). Renewals require the holder identity. | Leases do not enforce filesystem locks. Direct file writes and ordinary unfenced memory appends are outside this guarantee; missing claims are not reliable proof that a file was edited. |
+| **Accidental memory mutation by observers** | Read-only MCP sessions reject mutation tools before lazy initialization. SQLite opens with `mode=ro`; schema creation and background GC are disabled. | The policy limits that server connection. A process with independent database-file access can open a writable connection; use OS access controls for hard isolation. |
 | **Identity spoofing** | `agent_id` is fixed per server process from launch configuration and validated against a strict pattern. | Identity is self-asserted: any process that can open the file can claim any id. Use OS permissions and one database per trust domain. Signed events are future work. |
 | **Secret leakage** | Nothing is sent off-host except through a summarizer the operator explicitly configures. `.gitignore` excludes the database. | Agents may log secrets in tool output, and MemKernel stores what it is given. Redact before logging. |
 
@@ -615,7 +616,8 @@ the standard `mcpServers` configuration schema this is a one-line change.
 MemKernel treats multi-agent memory as a kernel resource. It keeps an immutable,
 verifiable log. State is a deterministic fold. Branches and compensating rollbacks make
 speculation and recovery cheap. A token-budget collector is provably sound and bounded.
-Fenced leases make concurrent editing safe. All of it is reachable from unmodified agents
+Fenced leases reject stale memory appends through the fenced path; filesystem editing
+still depends on agent cooperation. These operations are reachable from unmodified agents
 through MCP. The evaluation shows large context savings with verified state equivalence,
 millisecond-scale recovery, and live interoperability between agents from different
 vendors.

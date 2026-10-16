@@ -176,7 +176,9 @@ class MemKernelClient:
         async def beat() -> None:
             while True:
                 await asyncio.sleep(ttl_seconds / 3)
-                if not await self.kernel.heartbeat_lease(resource=grant.resource, fencing_token=handle.fencing_token):
+                if not await self.kernel.heartbeat_lease(
+                    resource=grant.resource, fencing_token=handle.fencing_token, agent_id=self.agent_id
+                ):
                     handle._lost.set()
                     return
 

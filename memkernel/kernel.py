@@ -99,17 +99,21 @@ class MemKernel:
         lease_clock: Callable[[], float] = time.time,
         auto_gc: bool = True,
         synchronous: str = "NORMAL",
+        read_only: bool = False,
     ) -> "MemKernel":
-        store = await AsyncEventStore(path, synchronous=synchronous).open()
+        store = await AsyncEventStore(path, synchronous=synchronous, read_only=read_only).open()
         try:
-            await store.ensure_branch(DEFAULT_BRANCH)
+            if read_only:
+                await store.get_branch(DEFAULT_BRANCH)
+            else:
+                await store.ensure_branch(DEFAULT_BRANCH)
         except BaseException:
             await store.close()
             raise
         gc = MemoryGCEngine(
             store, counter=TokenCounter(tokenizer), summarizer=summarizer, config=gc_config
         )
-        return cls(store, locks=LockManager(store, clock=lease_clock), gc=gc, auto_gc=auto_gc)
+        return cls(store, locks=LockManager(store, clock=lease_clock), gc=gc, auto_gc=auto_gc and not read_only)
 
     async def close(self) -> None:
         await self.store.close()
@@ -256,8 +260,8 @@ class MemKernel:
                 )
         return released
 
-    async def heartbeat_lease(self, *, resource: str, fencing_token: int) -> bool:
-        return await self.locks.heartbeat_lock(normalize_resource(resource), fencing_token)
+    async def heartbeat_lease(self, *, resource: str, fencing_token: int, agent_id: str) -> bool:
+        return await self.locks.heartbeat_lock(normalize_resource(resource), fencing_token, agent_id=agent_id)
 
     async def fenced_append(self, envelope: EventEnvelope, *, resource: str, fencing_token: int) -> EventEnvelope:
         """Append ``envelope`` only if ``fencing_token`` is the current,
