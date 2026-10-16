@@ -303,7 +303,7 @@ def _read_entry(path: Path, fmt: str) -> dict[str, Any] | None:
 
 def _version() -> str:
     try:
-        return metadata.version("memkernel")
+        return metadata.version("memkernel-mcp")
     except metadata.PackageNotFoundError:
         from memkernel import __version__
 
