@@ -137,3 +137,19 @@ async def test_doctor_end_to_end(project: Path, home: Path, capsys: pytest.Captu
     assert "16 tools" in out and "[ok] claude-code" in out and "[FAIL]" not in out
     await cli._status(project.resolve(), "main", as_json=False)
     assert "branches  main" in capsys.readouterr().out
+
+
+def test_version_uses_our_distribution(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The unrelated PyPI project named memkernel must not supply our version.
+    monkeypatch.setattr(cli.metadata, "version", lambda name: "9.8.7" if name == "memkernel-mcp" else "unrelated")
+    assert cli._version() == "9.8.7"
+
+
+def test_version_falls_back_for_source_checkout(monkeypatch: pytest.MonkeyPatch) -> None:
+    from memkernel import __version__
+
+    def missing(_name: str) -> str:
+        raise cli.metadata.PackageNotFoundError
+
+    monkeypatch.setattr(cli.metadata, "version", missing)
+    assert cli._version() == __version__
