@@ -300,6 +300,46 @@ async def test_unsigned_import_and_foreign_author_fail_closed(peers):
         )
 
 
+async def test_signed_peer_cannot_preempt_another_peers_notice_identity(
+    peers, tmp_path
+):
+    alice, bob, folder, keys = await setup_peers(peers)
+    notice = await alice.notices.post(
+        agent_id="alice", resource="service:auth", message="Legitimate"
+    )
+    await alice.sync.run_once()
+    await bob.sync.run_once()
+    document = json.loads((folder / "bob.json").read_text())
+    stolen = notice.model_dump(mode="json")
+    stolen["author"] = "bob"
+    document["notices"] = [stolen]
+    write_signed(folder / "bob.json", document, keys["bob"])
+    original = (folder / "alice.json").read_bytes()
+    (folder / "alice.json").unlink()  # The legitimate peer's file arrives later.
+    key = Ed25519PrivateKey.generate()
+    private, config = tmp_path / "observer.key", tmp_path / "observer.json"
+    private.write_bytes(key.private_bytes_raw())
+    protect_private_file(private)
+    policy = json.loads(peers[1]["alice"].read_text())
+    policy.update(peer_id="observer", private_key=str(private))
+    policy["trusted_peers"]["observer"] = {
+        "public_key": key.public_key().public_bytes_raw().hex(),
+        "agents": ["observer"],
+    }
+    config.write_text(json.dumps(policy))
+    protect_private_file(config)
+    async with await MemKernel.open(
+        tmp_path / "observer.db", tokenizer="heuristic"
+    ) as observer:
+        await observer.enable_sync(config)
+        result = await observer.sync.run_once()
+        assert result["changed"] == 0
+        assert result["errors"]["bob"] == "unauthorized_origin"
+        (folder / "alice.json").write_bytes(original)
+        assert (await observer.sync.run_once())["changed"] == 1
+        assert (await observer.notices.list())[0]["author"] == "alice"
+
+
 async def test_tampering_cannot_change_memory_or_cursor(peers):
     alice, bob, folder, _ = await setup_peers(peers)
     await alice.notices.post(

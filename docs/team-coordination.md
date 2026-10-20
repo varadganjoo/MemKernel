@@ -17,7 +17,11 @@ provide or pay for that transport. Never put a live SQLite database, local
 policy, private key or backup in this folder.
 
 Signatures bind the workspace, peer, sequence, timestamp and complete notice
-records. A peer can publish only its allowlisted authors. Agent identities must
+records. A peer can publish only its allowlisted authors.
+Managed notice IDs are origin-qualified UUIDs, such as `alice:<uuid>`, so a
+signed peer cannot preempt another participant's IDs on a fresh replica.
+Treat the returned notice ID as opaque and retain its origin prefix.
+Agent identities must
 be distinct across peers. Each database is bound to one workspace/local peer.
 Once bound, reopening without a policy does not re-enable unsigned imports or
 notice posting. Local processes with the signing key or direct database access
@@ -153,7 +157,7 @@ Common status/error codes:
 | `stale` | Contact the peer and check their process, clocks and transport. Re-reading the same file never refreshes liveness. |
 | `invalid_signature`, `wrong_peer`, `wrong_workspace` | Stop relying on that transfer; verify the policy and file provenance independently. |
 | `replayed_sequence`, `sequence_conflict` | Investigate transport rollback, duplicate local identities or a restored database. Do not reset the cursor. |
-| `unauthorized_author`, `notice_conflict` | Inspect peer identity ownership or incompatible records; the complete peer batch was rejected. |
+| `unauthorized_author`, `unauthorized_origin`, `notice_conflict` | Inspect peer identity ownership or incompatible records; the complete peer batch was rejected. |
 | `future_timestamp` | Correct clock synchronization; timestamps over five minutes ahead are rejected. |
 | `unsafe_file`, `oversized_file`, `io_error` | Correct file type, capacity or filesystem access before retrying. |
 

@@ -36,7 +36,7 @@ class CoordinationNotice(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     notice_id: str = Field(
-        pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        pattern=r"^(?:[a-z0-9][a-z0-9_-]{0,63}:)?[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     )
     author: str = Field(strict=True)
     resource: str = Field(
@@ -158,7 +158,9 @@ class NoticeBoard:
         self._check_local_author(agent_id)
         now = self.clock()
         notice = CoordinationNotice(
-            notice_id=str(uuid4()),
+            notice_id=f"{self.local_peer}:{uuid4()}"
+            if self.local_peer
+            else str(uuid4()),
             author=agent_id,
             resource=resource,
             message=message,

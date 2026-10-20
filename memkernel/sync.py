@@ -264,6 +264,8 @@ class FolderSync:
             raise SyncRejected("future_timestamp")
         if any(n.author not in policy.agents for n in bundle.notices):
             raise SyncRejected("unauthorized_author")
+        if any(not n.notice_id.startswith(f"{peer}:") for n in bundle.notices):
+            raise SyncRejected("unauthorized_origin")
         return bundle, hashlib.sha256(payload).hexdigest()
 
     async def _audit(
