@@ -42,7 +42,14 @@ if TYPE_CHECKING:
 
 MAX_BUNDLE_BYTES = 8 * 1024 * 1024
 MAX_SYNC_NOTICES = 10_000
-PEER_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+PEER_PATTERN = r"^[a-z0-9][a-z0-9_-]{0,63}$"
+RESERVED_PEERS = {
+    "con",
+    "prn",
+    "aux",
+    "nul",
+    *[f"{prefix}{i}" for prefix in ("com", "lpt") for i in range(10)],
+}
 
 
 class PeerPolicy(BaseModel):
@@ -80,8 +87,10 @@ class SyncConfig(BaseModel):
             raise ValueError("local peer must be explicitly pinned in trusted_peers")
         agents, keys = set(), set()
         for peer, policy in self.trusted_peers.items():
-            if not re.fullmatch(PEER_PATTERN, peer):
-                raise ValueError("invalid trusted peer_id")
+            if not re.fullmatch(PEER_PATTERN, peer) or peer in RESERVED_PEERS:
+                raise ValueError(
+                    "peer_id must be lowercase and portable across supported filesystems"
+                )
             if agents.intersection(policy.agents) or len(set(policy.agents)) != len(
                 policy.agents
             ):
@@ -185,7 +194,9 @@ def atomic_write(path: Path, data: bytes, *, private: bool = False) -> None:
 def load_config(path: str | Path) -> SyncConfig:
     path = Path(path).expanduser().resolve()
     try:
-        config = SyncConfig.model_validate(_parse(_read_file(path, 64 * 1024, private=True)))
+        config = SyncConfig.model_validate(
+            _parse(_read_file(path, 64 * 1024, private=True))
+        )
     except OSError as exc:
         raise ValueError("cannot read local sync policy") from exc
     paths = {

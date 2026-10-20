@@ -449,6 +449,18 @@ async def test_invalid_local_policy_fails_before_exchange(peers, change):
     assert list(folder.iterdir()) == []
 
 
+@pytest.mark.parametrize("peer_id", ["Alice", "con", "nul", "com1", "lpt9"])
+async def test_peer_names_are_portable_and_cannot_alias_windows_devices(peers, peer_id):
+    kernels, configs, folder, _ = peers
+    config = json.loads(configs["alice"].read_text())
+    config["trusted_peers"][peer_id] = config["trusted_peers"].pop("alice")
+    config["peer_id"] = peer_id
+    configs["alice"].write_text(json.dumps(config))
+    with pytest.raises(ValueError):
+        await kernels["alice"].enable_sync(configs["alice"])
+    assert list(folder.iterdir()) == []
+
+
 async def test_revocation_requires_no_shared_folder_changes(peers):
     alice, bob, folder, _ = await setup_peers(peers)
     await alice.notices.post(

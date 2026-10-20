@@ -9,8 +9,10 @@ distributed lock. Begin with synthetic data and a limited pilot.
 
 Each participant has a **local** SQLite database and an Ed25519 signing key.
 An operator pins peer public keys and the agent IDs each peer may publish.
-The exchange folder contains one signed JSON snapshot per peer. Use an existing
-organization-approved folder synchronization mechanism; MemKernel does not
+The exchange folder contains one signed JSON snapshot per peer.
+Peer IDs use lowercase ASCII letters, digits, hyphens or underscores and cannot
+be Windows device names. This avoids collisions across case-insensitive hosts.
+Use an existing organization-approved folder synchronization mechanism; MemKernel does not
 provide or pay for that transport. Never put a live SQLite database, local
 policy, private key or backup in this folder.
 
