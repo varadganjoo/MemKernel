@@ -106,6 +106,42 @@ CREATE TABLE IF NOT EXISTS leases (
     acquired_at     REAL NOT NULL,
     expires_at      REAL NOT NULL
 );
+
+-- Optional workspace-wide coordination, outside rollback and snapshot lineage.
+-- Existing v1 readers ignore this table; the event schema stays unchanged.
+CREATE TABLE IF NOT EXISTS coordination_notices (
+    notice_id       TEXT PRIMARY KEY,
+    document        TEXT NOT NULL,
+    cleared_at      TEXT
+);
+
+CREATE TABLE IF NOT EXISTS notice_sources (
+    notice_id TEXT PRIMARY KEY REFERENCES coordination_notices(notice_id),
+    peer_id TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sync_state (
+    peer_id TEXT PRIMARY KEY,
+    sequence INTEGER NOT NULL,
+    digest TEXT NOT NULL,
+    sent_at TEXT NOT NULL,
+    received_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sync_identity (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    workspace_id TEXT NOT NULL,
+    peer_id TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sync_audit (
+    id INTEGER PRIMARY KEY,
+    timestamp TEXT NOT NULL,
+    peer_id TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    outcome TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    sequence INTEGER,
+    changed INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_sync_audit_peer ON sync_audit(peer_id, id DESC);
 """
 
 _EVENT_COLUMNS = (
@@ -240,8 +276,18 @@ class AsyncEventStore:
             if self.read_only:
                 await db.execute("PRAGMA query_only = ON")
                 await db.set_authorizer(_read_only_authorizer)
-            async with db.execute("PRAGMA journal_mode" if self.read_only else "PRAGMA journal_mode = WAL") as cur:
-                row = await cur.fetchone()
+            deadline = asyncio.get_running_loop().time() + self._busy_timeout_ms / 1000
+            while True:
+                try:
+                    async with db.execute("PRAGMA journal_mode" if self.read_only else "PRAGMA journal_mode = WAL") as cur:
+                        row = await cur.fetchone()
+                    break
+                except sqlite3.OperationalError as exc:
+                    # WAL initialization can report BUSY without invoking SQLite's busy handler.
+                    remaining = deadline - asyncio.get_running_loop().time()
+                    if self.read_only or getattr(exc, "sqlite_errorcode", 0) & 0xFF != sqlite3.SQLITE_BUSY or remaining <= 0:
+                        raise
+                    await asyncio.sleep(min(0.01, remaining))
             self.journal_mode = str(row[0]).lower() if row else None
             await db.execute(f"PRAGMA synchronous = {self._synchronous}")
             await db.execute("PRAGMA foreign_keys = ON")

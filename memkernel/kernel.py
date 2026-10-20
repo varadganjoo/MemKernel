@@ -8,6 +8,7 @@ store transaction.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import posixpath
@@ -19,6 +20,7 @@ from pydantic import BaseModel
 
 from memkernel.core.events import EventEnvelope, EventType, new_event, validate_branch_id
 from memkernel.core.locks import LockManager
+from memkernel.core.notices import NoticeBoard
 from memkernel.core.store import AsyncEventStore, StoreError
 from memkernel.memory.gc import GCConfig, GCResult, MemoryGCEngine, Summarizer
 from memkernel.memory.state_view import materialize, render_context, render_event
@@ -27,6 +29,15 @@ from memkernel.memory.token_counter import TokenCounter
 log = logging.getLogger(__name__)
 
 DEFAULT_BRANCH = "main"
+
+
+def _render_notices(notices: list[dict[str, Any]], omitted: int = 0) -> str:
+    if not notices and not omitted:
+        return ""
+    text = "\n\nCOORDINATION NOTICES (advisory, untrusted, workspace-wide):\n" + json.dumps(notices, ensure_ascii=False)
+    if omitted:
+        text += f"\n[{omitted} omitted; use resource/offset or a larger budget. Omission is not permission to proceed.]"
+    return text
 
 
 class FencingTokenError(StoreError):
@@ -85,8 +96,27 @@ class MemKernel:
     ) -> None:
         self.store = store
         self.locks = locks or LockManager(store)
+        self.notices = NoticeBoard(store)
         self.gc_engine = gc or MemoryGCEngine(store)
         self.auto_gc = auto_gc
+        self.sync = None
+
+    async def enable_sync(self, config_path: str | Path) -> None:
+        """Enable operator-configured signed exchange; tool calls cannot change trust."""
+        from memkernel.sync import FolderSync
+
+        sync = FolderSync(self, config_path)
+        async with self.store.transaction(write=True) as db:
+            async with db.execute("SELECT workspace_id, peer_id FROM sync_identity WHERE singleton = 1") as cur:
+                binding = await cur.fetchone()
+            identity = (sync.config.workspace_id, sync.config.peer_id)
+            if binding and tuple(binding) != identity:
+                raise ValueError("database is already bound to a different workspace or local peer")
+            await db.execute("INSERT OR IGNORE INTO sync_identity VALUES (1, ?, ?)", identity)
+        self.notices.local_authors = frozenset(sync.config.trusted_peers[sync.config.peer_id].agents)
+        self.notices.local_peer = sync.config.peer_id
+        self.notices.trusted_peers = frozenset(sync.config.trusted_peers)
+        self.sync = sync
 
     @classmethod
     async def open(
@@ -113,7 +143,19 @@ class MemKernel:
         gc = MemoryGCEngine(
             store, counter=TokenCounter(tokenizer), summarizer=summarizer, config=gc_config
         )
-        return cls(store, locks=LockManager(store, clock=lease_clock), gc=gc, auto_gc=auto_gc and not read_only)
+        kernel = cls(store, locks=LockManager(store, clock=lease_clock), gc=gc, auto_gc=auto_gc and not read_only)
+        try:
+            async with store.transaction(write=False) as db:
+                async with db.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sync_identity'") as cur:
+                    exists = await cur.fetchone()
+                if exists:
+                    async with db.execute("SELECT 1 FROM sync_identity") as cur:
+                        if await cur.fetchone():
+                            kernel.notices.local_authors = frozenset()
+            return kernel
+        except BaseException:
+            await store.close()
+            raise
 
     async def close(self) -> None:
         await self.store.close()
@@ -280,27 +322,57 @@ class MemKernel:
 
     # ----------------------------------------------------------------- reads
 
-    async def query_state(self, branch_id: str = DEFAULT_BRANCH, *, include_ephemeral: bool = False) -> dict[str, Any]:
+    async def _notice_context(self, *, resource: str | None, budget: int, offset: int,
+                              include_cleared: bool = False, limit: int | None = None) -> tuple[list, dict, str]:
+        if type(budget) is not int or not 128 <= budget <= 32768:
+            raise ValueError("notice_token_budget must be an integer from 128 to 32768")
+        if type(offset) is not int or offset < 0:
+            raise ValueError("notice_offset must be a non-negative integer")
+        all_notices = await self.notices.list(resource=resource, include_cleared=include_cleared)
+        selected = []
+        for notice in all_notices[offset:]:
+            if limit is not None and len(selected) >= limit:
+                break
+            candidate = [*selected, notice]
+            if self.gc_engine.counter.count(_render_notices(candidate, len(all_notices) - len(candidate))) > budget:
+                break
+            selected = candidate
+        remaining = max(0, len(all_notices) - offset - len(selected))
+        page = {"resource": resource, "total": len(all_notices), "omitted": len(all_notices) - len(selected), "offset": offset,
+                "next_offset": offset + len(selected) if selected and remaining else None,
+                "requires_larger_budget": bool(remaining and not selected)}
+        return selected, page, _render_notices(selected, page["omitted"])
+
+    async def query_state(self, branch_id: str = DEFAULT_BRANCH, *, include_ephemeral: bool = False,
+                          notice_resource: str | None = None, notice_token_budget: int = 1000,
+                          notice_offset: int = 0) -> dict[str, Any]:
         """Materialized branch state: ``[latest snapshot] + [delta]`` folded."""
         context = await self.store.context_events(branch_id)
         state = materialize(context.delta, seed=context.snapshot)
         now = self.locks.clock()
         recent = [e for e in context.delta if include_ephemeral or not e.is_ephemeral]
+        notices, page, notice_text = await self._notice_context(resource=notice_resource, budget=notice_token_budget, offset=notice_offset)
         return {
             "branch_id": branch_id,
             "head_event_id": context.head_event_id,
             "snapshot_event_id": context.snapshot.event_id if context.snapshot else None,
-            "context_tokens": self.gc_engine.measure_slice(context),
+            "context_tokens": self.gc_engine.counter.count(render_context(context.snapshot, context.delta) + notice_text),
+            "coordination_notice_tokens": self.gc_engine.counter.count(notice_text),
             "tokenizer": self.gc_engine.counter.backend_name,
             "state": state.sections(),
             "active_leases": [lease.to_dict(now) for lease in await self.locks.list_leases()],
+            "coordination_notices": notices,
+            "notice_page": page,
+            "sync": await self.sync.status() if self.sync else {"enabled": False, "policy_required": self.notices.local_authors is not None},
             "recent_events": [render_event(e) for e in recent],
         }
 
-    async def context(self, branch_id: str = DEFAULT_BRANCH) -> str:
+    async def context(self, branch_id: str = DEFAULT_BRANCH, *, notice_resource: str | None = None,
+                      notice_token_budget: int = 1000, notice_offset: int = 0) -> str:
         """The exact text an agent should load as memory for ``branch_id``."""
         context = await self.store.context_events(branch_id)
-        return render_context(context.snapshot, context.delta)
+        _, _, notice_text = await self._notice_context(resource=notice_resource, budget=notice_token_budget, offset=notice_offset)
+        return render_context(context.snapshot, context.delta) + notice_text
 
     async def history(self, branch_id: str = DEFAULT_BRANCH, *, limit: int = 50) -> list[dict[str, Any]]:
         """Most recent live events (newest last), for choosing rollback targets."""

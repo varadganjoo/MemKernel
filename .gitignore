@@ -11,5 +11,8 @@ __pycache__/
 build/
 dist/
 .venv/
+.coverage*
+*.key
+sync-config*.json
 venv/
 !evidence/**/memkernel.db

@@ -11,6 +11,7 @@ all of them one shared memory with the following properties:
 - **Branchable.** Agents fork a timeline to investigate, diff it against `main`, and roll it back when an experiment or a hallucination fails. Forks copy no rows.
 - **Coordinated.** Leases coordinate cooperating agents. Fenced event appends reject expired, stale or foreign leases atomically; leases do not prevent direct filesystem edits.
 - **Budgeted.** An autonomous GC compacts noisy tool output into semantic snapshots. In the benchmarks it keeps each agent's context under a token budget while preserving every decision.
+- **Portable coordination.** Signed, workspace-bound notices move between local databases through an operator-managed folder. Peer trust, freshness, replay protection and bounded notice context are built in.
 
 It is a plain Python package: SQLite (WAL) for storage, `pydantic` v2 for
 schemas, and the official `mcp` SDK (`FastMCP` on 1.x, `MCPServer` on 2.x) for
@@ -20,19 +21,22 @@ the stdio server.
 test suite passes on Windows 11 and on Linux (Debian 13) under Python 3.14.7, and CI covers
 all three operating systems. It works with Claude Code, Codex CLI, Antigravity and Cursor.
 
-```text
- Cursor        Claude Code        Codex CLI       Antigravity      your harness
-   |                |                 |                |                |
-   | stdio/MCP      | stdio/MCP       | stdio/MCP      | stdio/MCP      | in-process
-   v                v                 v                v                v
- memkernel-server (one process per agent, own agent_id)  -->  MemKernel facade
-                                                                    |
-            +-------------------------------+-----------------------+
-            v                               v                       v
-   AsyncEventStore                     LockManager            MemoryGCEngine
-   append-only, hash-chained log       leases +               snapshots within
-   + copy-on-write branches            fencing tokens         a token budget
-            \_______________ one SQLite file (WAL) per project ______/
+```mermaid
+flowchart TB
+    clients["Cursor · Claude Code · Codex · Antigravity"] -->|"stdio / MCP"| server["One server per agent"]
+    harness["Python harness"] --> kernel["MemKernel"]
+    server --> kernel
+    kernel --> events["Event store: append-only branches"]
+    kernel --> locks["Local leases and fencing tokens"]
+    kernel --> gc["Memory snapshots and token budget"]
+    kernel --> notices["Workspace-wide coordination notices"]
+    events --> db[("One local SQLite database")]
+    locks --> db
+    gc --> db
+    notices --> db
+    notices <--> sync["Signed folder exchange"]
+    sync <-->|"Notice JSON only"| folder["Organization-managed synced folder"]
+    folder <-->|"Pinned peer signatures"| peer["Another host: separate local database"]
 ```
 
 Each agent runs its own server process. All of them share one database file,
@@ -44,9 +48,10 @@ and SQLite's `BEGIN IMMEDIATE` transactions serialize writers across processes.
 synthetic data first. Incorrect or sensitive memory can persist and affect other agents.
 Review what agents store and act on, redact secrets before logging, and keep backups.
 
-- **One host, one trust domain.** Keep the SQLite database on local disk. Network
-  filesystems, distributed leases and cross-owner authentication are not supported.
-  Agent IDs are self-asserted launch configuration, not proof of identity. Use distinct
+- **One local database per host and trust domain.** Keep SQLite on local disk.
+  Network filesystems and distributed leases are not supported. Signed notice
+  exchange authenticates pinned remote peers; local agent IDs remain self-asserted
+  launch configuration. Use distinct
   IDs for cooperating agents and OS permissions to control access to the database,
   its directory, backups and WAL/SHM files.
 - **Observe without writing.** Launch an observer with
@@ -66,9 +71,9 @@ Review what agents store and act on, redact secrets before logging, and keep bac
   actions independently. The hash chain detects some tampering; it does not authenticate
   writers or protect against an attacker who controls the database file.
 
-These controls are a local safety foundation, not an enterprise security certification.
-Deployments spanning owners or machines need authenticated access, authorization and
-operational validation before sharing a memory domain.
+These controls are a deployment foundation, not an enterprise security certification.
+For controlled teams on separate machines, follow the [deployment and recovery guide](docs/team-coordination.md),
+including peer verification, OS access controls, transport encryption and a pilot.
 
 ## Quickstart: three commands
 
@@ -135,11 +140,96 @@ python examples/multi_agent_collaboration.py
 python examples/rollback_on_hallucination.py
 ```
 
+## Coordination notices and signed folder exchange
+
+For a team setup, initialize local signing identities with `memkernel sync init`,
+pin independently verified peers with `memkernel sync trust`, and set
+`MEMKERNEL_SYNC_CONFIG` in each agent's MCP server entry. The server publishes
+post/clear updates and polls the folder; it requires no hosted service. See the
+[complete setup and operations guide](docs/team-coordination.md).
+
+`memkernel_sync_now()` reports publish/import failures, and
+`memkernel_sync_status()` reports peer freshness and rejected transfers. Signed
+mode rejects unsigned imports and unauthorized authors. Run
+`python examples/signed_folder_sync.py` for a disposable two-database example
+covering signatures, tampering and replay protection without network calls.
+
+For a message like "I'm changing login, please coordinate before touching auth",
+use `memkernel_post_notice(resource="service:auth", message="Changing login")`.
+Every branch sees it in `memkernel_query_state().coordination_notices`. Branches
+represent investigations; authors participate in them. Switching branches,
+rollback and GC do not remove or restore workspace-wide notices.
+
+A notice has an immutable UUID, author, logical resource, message, creation time
+and expiry. Resources are case-sensitive names like `service:auth` or
+`repo:frontend/login`, never absolute paths on someone's laptop. The default TTL
+is one hour, with a range of one second to seven days. Expiry marks a notice
+**stale**, which means check with the author. Only an explicit
+`memkernel_clear_notice(notice_id)` marks it finished. To change a message or
+extend its expiry, clear it and post another notice.
+
+Two laptops keep **separate databases**. For manual exchange on unmanaged databases,
+explicitly export selected notice IDs
+with `memkernel_export_notices(notice_ids=[...])`, review the returned JSON,
+transfer it using your existing trusted channel, then pass its JSON text to
+`memkernel_import_notices(document=...)` on the other machine. Export without
+IDs includes the entire board, including cleared notices. Send later exports
+containing those cleared IDs so peers learn the work finished. Manual exchange
+does not sync automatically, and an unreceived update remains unknown to the other machine.
+
+Python harnesses use the same API through `kernel.notices`:
+
+```python
+notice = await kernel.notices.post(
+    agent_id="alice", resource="service:auth", message="Changing login"
+)
+document = await kernel.notices.export_json(notice_ids=[notice.notice_id])
+changed = await other_kernel.notices.import_json(document)
+await kernel.notices.clear(notice.notice_id, agent_id="alice")
+```
+
+Run the complete two-database example with `python examples/portable_notices.py`.
+It uses a temporary JSON file and makes no network or model calls.
+
+The versioned format is `memkernel.notices/v1`. Imports are transactional and
+idempotent. Conflicting immutable fields reject the whole batch. Clearing wins
+over active records in either arrival order; concurrent clears converge on the
+earliest clear timestamp without treating remote clocks as trusted ordering.
+Absence from a batch never clears a notice. Each exchange is limited to 1 MiB
+of UTF-8 JSON and 1,000 notices; export selected IDs to split larger boards.
+Messages are limited to 4,096 characters.
+
+**Trust and limits:** notices are advisory. Signed exchange pins peers and their
+allowed authors; local agents share an OS trust domain. Manual imports and
+unmanaged identities are self-asserted. Imported text remains untrusted data. Export includes notice
+text, so review it for sensitive content. It excludes decisions, scratchpads,
+local event IDs, leases and fencing tokens. Notices never enforce distributed
+locks or prevent file edits. Keep SQLite on local disk; exchange JSON, not live
+database files. No hosted MemKernel service is required.
+
+Notices live in an additive auxiliary table, separate from the hash-chained
+event log. Existing v1 databases are extended on writable open without changing
+events; read-only sessions can still inspect databases that lack the table.
+Notices are not in snapshots or the branch audit history, and GC does not compact
+them. `context_tokens` includes visible notices, with their separate contribution
+reported as `coordination_notice_tokens`. Clear finished notices to keep context
+small. Query/context limits notice content to 1,000 estimated tokens by default;
+`notice_page` explicitly reports omissions. Use `notice_resource`, `notice_offset`
+and `notice_token_budget` to inspect more, or paginate `memkernel_list_notices`.
+Cleared tombstones are retained; capacity and recovery procedures are in the team guide.
+
 ## MCP tools
 
 | Tool | Purpose |
 |---|---|
-| `memkernel_query_state(branch_id="main", include_ephemeral=False)` | Consolidated memory as JSON: tasks, decisions, workspace facts, deprecated assumptions, blockers, claims, leases, recent events. |
+| `memkernel_query_state(branch_id="main", include_ephemeral=False)` | Consolidated memory as JSON: tasks, decisions, workspace facts, deprecated assumptions, blockers, claims, leases, coordination notices, recent events. |
+| `memkernel_post_notice(resource, message, ttl_seconds=3600)` | Post a workspace-wide advisory. Expiry marks it stale. |
+| `memkernel_clear_notice(notice_id)` | Explicitly clear your notice when finished. |
+| `memkernel_list_notices(resource=None, include_cleared=False)` | Inspect active and stale notices, optionally cleared history. |
+| `memkernel_export_notices(notice_ids=None)` | Export selected notices or the whole board, including clears. |
+| `memkernel_import_notices(document)` | Atomically merge a trusted collaborator's JSON export. Returns changed-record count. |
+| `memkernel_sync_now()` | Run preconfigured signed folder exchange and report failures. |
+| `memkernel_sync_status()` | Inspect peer freshness, sequence and last error without refreshing liveness. |
 | `memkernel_append_decision(decision_key, decision_value, rationale)` | Durable architectural decision. It survives compaction, and a new value supersedes the old one. |
 | `memkernel_acquire_lease(file_path, timeout_seconds=60)` | Exclusive lease with a TTL. Returns a fencing token, or the current holder. |
 | `memkernel_release_lease(file_path, fencing_token)` | Release. Returns `false` for a stale token. |

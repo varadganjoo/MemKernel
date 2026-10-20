@@ -134,7 +134,7 @@ async def test_doctor_end_to_end(project: Path, home: Path, capsys: pytest.Captu
     cli.attach(["claude-code"], project=project, home=home)
     assert await cli._doctor(project.resolve(), home) is True
     out = capsys.readouterr().out
-    assert "16 tools" in out and "[ok] claude-code" in out and "[FAIL]" not in out
+    assert "23 tools" in out and "[ok] claude-code" in out and "[FAIL]" not in out
     await cli._status(project.resolve(), "main", as_json=False)
     assert "branches  main" in capsys.readouterr().out
 
