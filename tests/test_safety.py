@@ -15,6 +15,10 @@ from tests.conftest import FakeClock
 
 
 MUTATIONS = {
+    "memkernel_sync_now": {},
+    "memkernel_post_notice": {"resource": "service:auth", "message": "Working"},
+    "memkernel_clear_notice": {"notice_id": "00000000-0000-4000-8000-000000000000"},
+    "memkernel_import_notices": {"document": '{"schema":"memkernel.notices/v1","notices":[]}'},
     "memkernel_append_decision": {"decision_key": "db", "decision_value": "bad", "rationale": "test"},
     "memkernel_fenced_append_decision": {
         "file_path": "a.py", "fencing_token": 1, "decision_key": "db", "decision_value": "bad", "rationale": "test",
@@ -36,6 +40,7 @@ async def test_read_only_stdio_blocks_every_mutator_and_keeps_reads(db_path: str
         await kernel.append_decision(branch_id="main", agent_id="owner", key="db", value="sqlite", rationale="local")
         await kernel.acquire_lease(branch_id="main", agent_id="owner", resource="a.py", ttl_seconds=300)
         await kernel.fork(source_branch="main", new_branch="existing", agent_id="owner")
+        notice = await kernel.notices.post(agent_id="owner", resource="service:auth", message="Working")
         before_events = await kernel.store.read_stream("main")
         before_branches = await kernel.store.list_branches()
         before_leases = await kernel.locks.list_leases(active_only=False)
@@ -45,6 +50,8 @@ async def test_read_only_stdio_blocks_every_mutator_and_keeps_reads(db_path: str
             state = await client.call("memkernel_query_state")
             assert state["safety"]["read_only"] is True
             assert state["state"]["decisions"]["db"]["value"] == "sqlite"
+            assert (await client.call("memkernel_list_notices"))["notices"][0]["notice_id"] == notice.notice_id
+            assert (await client.call("memkernel_export_notices"))["notices"][0]["notice_id"] == notice.notice_id
             for tool, arguments in MUTATIONS.items():
                 with pytest.raises(McpToolError, match="read-only"):
                     await client.call(tool, **arguments)

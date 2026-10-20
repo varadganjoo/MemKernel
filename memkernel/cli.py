@@ -368,9 +368,15 @@ def main(argv: list[str] | None = None) -> int:
     p_status.add_argument("--branch", default=DEFAULT_BRANCH)
     p_status.add_argument("--json", action="store_true")
 
+    sub.add_parser("sync", help="configure signed folder exchange (see `memkernel sync --help`)", add_help=False)
+
     sub.add_parser("serve", help="run the MCP server over stdio (flags: see `memkernel serve --help`)", add_help=False)
 
     argv = list(sys.argv[1:] if argv is None else argv)
+    if argv[:1] == ["sync"]:
+        from memkernel.sync_cli import main as sync_main
+
+        return sync_main(argv[1:])
     if argv[:1] == ["serve"]:
         from memkernel.server.mcp_server import main as serve
 

@@ -3,12 +3,13 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -44,6 +45,19 @@ jobs:
         run: |
           python examples/multi_agent_collaboration.py
           python examples/rollback_on_hallucination.py
+          python examples/portable_notices.py
+          python examples/signed_folder_sync.py
+
+  dependencies:
+    name: Dependency advisory scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - run: python -m pip install -e . pip-audit
+      - run: python -m pip_audit --skip-editable --strict
 
   package:
     name: Wheel install + memkernel doctor

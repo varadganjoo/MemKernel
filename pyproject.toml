@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "memkernel-mcp"
-version = "0.2.0"
+version = "0.3.0"
 description = "Event-sourced, branchable memory kernel and MCP server for multi-agent coding systems"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -30,6 +30,8 @@ dependencies = [
     "aiosqlite>=0.22",
     "pydantic>=2.13",
     "tiktoken>=0.14",
+    "cryptography>=46",
+    "pywin32>=312; sys_platform == 'win32'",
 ]
 
 [project.urls]
