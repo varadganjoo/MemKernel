@@ -3,7 +3,7 @@
 ## The short version
 
 ```bash
-uv tool install memkernel-mcp
+uv tool install --python 3.14 memkernel-mcp
 ```
 
 Then, from your project root:
@@ -17,6 +17,11 @@ memkernel doctor
 ```
 
 Restart the agents. Each one now has the `memkernel_*` tools, and all of them share one memory per project.
+
+You can attach just one client, such as `memkernel attach codex`. The README has
+[individual setup steps for each agent](../README.md#connect-your-agent), including
+how to enable the server after attaching. Install and sign in to the agent app
+separately; MemKernel does not install those clients.
 
 The rest of this guide explains what `attach` writes, how to configure agents by hand, and how to troubleshoot.
 
@@ -43,7 +48,7 @@ event and lease, and it is how agents see who decided what.
 |---|---|---|---|
 | `claude-code` | `<project>/.mcp.json` | `claude-code-cli` | absolute path to `<project>/.memkernel/memkernel.db` |
 | `cursor` | `<project>/.cursor/mcp.json` | `cursor-ide` | absolute path to `<project>/.memkernel/memkernel.db` |
-| `codex` | `~/.codex/config.toml` | `codex-cli` | discovered per project |
+| `codex` (desktop, CLI, IDE) | `~/.codex/config.toml` | `codex-cli` | discovered per project |
 | `antigravity` | every existing `~/.gemini/{antigravity,antigravity-ide,config}/mcp_config.json`, else `~/.gemini/antigravity/mcp_config.json` | `antigravity` | discovered per project |
 
 - The server command is the **absolute path of the Python interpreter that runs
@@ -114,7 +119,17 @@ claude -p "Call memkernel_query_state and summarize the decisions." --mcp-config
 same `mcpServers` object as above, with `"MEMKERNEL_AGENT_ID": "cursor-ide"`. Then
 enable the server under **Cursor Settings → MCP**.
 
-### Codex CLI
+<a id="codex-cli"></a>
+
+### Codex desktop, CLI, and IDE extension
+
+Recommended: run `memkernel attach codex` from the project root. This configures
+the local desktop app, CLI, and IDE extension through their shared
+`~/.codex/config.toml`. See the [official Codex MCP documentation](https://developers.openai.com/codex/mcp/).
+Restart the desktop app or start a new CLI/IDE session after changing the config.
+No fixed `cwd` or `MEMKERNEL_DB` is needed for normal per-project discovery.
+
+For manual setup instead:
 
 ```bash
 codex mcp add memkernel --env MEMKERNEL_AGENT_ID=codex-cli -- /abs/path/to/python -m memkernel.server.mcp_server
@@ -132,6 +147,11 @@ startup_timeout_sec = 120
 [mcp_servers.memkernel.env]
 MEMKERNEL_AGENT_ID = "codex-cli"
 ```
+
+`codex mcp list` checks registration; `/mcp` in an interactive CLI session shows
+active servers. Ask a new project chat to call `memkernel_query_state` to verify
+that tools can actually reach memory. Listing the config alone is not an
+end-to-end connection test.
 
 ### Antigravity
 

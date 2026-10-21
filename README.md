@@ -1,354 +1,243 @@
 # MemKernel
 
-**An event-sourced, branchable memory kernel for teams of coding agents, served over the Model Context Protocol.**
+<p align="center">
+  <img src="https://raw.githubusercontent.com/varadganjoo/MemKernel/main/docs/assets/memkernel-banner.webp" alt="MemKernel. Project memory for coding agents." width="960">
+</p>
 
-Cursor, Claude Code, Codex and your own harnesses each keep their own chat
-history. None of them knows what the others decided, which files they are
-editing, or which "fact" was already disproven three turns ago. MemKernel gives
-all of them one shared memory with the following properties:
+<p align="center">
+  <a href="https://github.com/varadganjoo/MemKernel/actions/workflows/ci.yml"><img src="https://github.com/varadganjoo/MemKernel/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="https://pypi.org/project/memkernel-mcp/"><img src="https://img.shields.io/pypi/v/memkernel-mcp?color=d98452" alt="PyPI version"></a>
+  <a href="https://pypi.org/project/memkernel-mcp/"><img src="https://img.shields.io/pypi/pyversions/memkernel-mcp" alt="Python versions"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-d98452" alt="MIT license"></a>
+</p>
 
-- **Deterministic.** State is a pure fold over an append-only, hash-chained event log. Replaying the log reproduces the state exactly.
-- **Branchable.** Agents fork a timeline to investigate, diff it against `main`, and roll it back when an experiment or a hallucination fails. Forks copy no rows.
-- **Coordinated.** Leases coordinate cooperating agents. Fenced event appends reject expired, stale or foreign leases atomically; leases do not prevent direct filesystem edits.
-- **Budgeted.** An autonomous GC compacts noisy tool output into semantic snapshots. In the benchmarks it keeps each agent's context under a token budget while preserving every decision.
-- **Portable coordination.** Signed, workspace-bound notices move between local databases through an operator-managed folder. Peer trust, freshness, replay protection and bounded notice context are built in.
+**Persistent, branchable project memory for coding agents.**
 
-It is a plain Python package: SQLite (WAL) for storage, `pydantic` v2 for
-schemas, and the official `mcp` SDK (`FastMCP` on 1.x, `MCPServer` on 2.x) for
-the stdio server.
+Save a decision in one session and retrieve it in the next. Give cooperating agents
+working on the same project a shared place for decisions, findings, and blockers.
 
-**Runs on Linux, macOS and Windows** with Python 3.11 through 3.14 (3.14 recommended). The
-test suite passes on Windows 11 and on Linux (Debian 13) under Python 3.14.7, and CI covers
-all three operating systems. It works with Claude Code, Codex CLI, Antigravity and Cursor.
+MemKernel runs locally with Python, SQLite, and MCP. Agents explicitly save and
+retrieve memory through tools; it does not automatically import their chat histories.
 
-```mermaid
-flowchart TB
-    clients["Cursor · Claude Code · Codex · Antigravity"] -->|"stdio / MCP"| server["One server per agent"]
-    harness["Python harness"] --> kernel["MemKernel"]
-    server --> kernel
-    kernel --> events["Event store: append-only branches"]
-    kernel --> locks["Local leases and fencing tokens"]
-    kernel --> gc["Memory snapshots and token budget"]
-    kernel --> notices["Workspace-wide coordination notices"]
-    events --> db[("One local SQLite database")]
-    locks --> db
-    gc --> db
-    notices --> db
-    notices <--> sync["Signed folder exchange"]
-    sync <-->|"Notice JSON only"| folder["Organization-managed synced folder"]
-    folder <-->|"Pinned peer signatures"| peer["Another host: separate local database"]
-```
+[Install](#install) · [Choose your agent](#connect-your-agent) · [Try it](#try-it-in-two-sessions) · [Integration guide](docs/integrations.md) · [Technical reference](docs/reference.md)
 
-Each agent runs its own server process. All of them share one database file,
-and SQLite's `BEGIN IMMEDIATE` transactions serialize writers across processes.
+> **Experimental:** start with a disposable project. Keep secrets and personal data out
+> of memory, and review what agents save. Memory is untrusted input, not authority.
 
-### Safety and trust boundary
+<a id="quickstart-three-commands"></a>
 
-**Experimental software for testing agent capabilities.** Use disposable projects and
-synthetic data first. Incorrect or sensitive memory can persist and affect other agents.
-Review what agents store and act on, redact secrets before logging, and keep backups.
+## Install
 
-- **One local database per host and trust domain.** Keep SQLite on local disk.
-  Network filesystems and distributed leases are not supported. Signed notice
-  exchange authenticates pinned remote peers; local agent IDs remain self-asserted
-  launch configuration. Use distinct
-  IDs for cooperating agents and OS permissions to control access to the database,
-  its directory, backups and WAL/SHM files.
-- **Observe without writing.** Launch an observer with
-  `memkernel-server --db /path/to/existing/memkernel.db --read-only`, or set
-  `MEMKERNEL_READ_ONLY=true` in that agent's MCP configuration. This blocks mutation
-  tools and opens an existing database with SQLite `mode=ro`. SQL authorization also
-  blocks database attachment and changes to the read-only query setting. It cannot initialize a
-  missing database or run background GC. Reads may still need SQLite WAL/SHM sidecars.
-  This limits that server process; it does not stop an agent with direct file access
-  from launching another writable process. Restrict that access at the OS level.
-- **Fence resource-associated decisions.** Acquire a lease, renew it while working,
-  then use `memkernel_fenced_append_decision` with its token. The session identity,
-  token and expiry are checked in the same transaction as the memory append. Ordinary
-  memory tools remain unfenced, and direct file writes are outside this protection.
-- **Treat memory as untrusted data.** Stored text is never executed by MemKernel,
-  but downstream agents can still follow injected instructions. Review consequential
-  actions independently. The hash chain detects some tampering; it does not authenticate
-  writers or protect against an attacker who controls the database file.
+Python **3.11–3.14** is supported; **3.14** is recommended. Install the agent app you
+want to use and sign in to it first.
 
-These controls are a deployment foundation, not an enterprise security certification.
-For controlled teams on separate machines, follow the [deployment and recovery guide](docs/team-coordination.md),
-including peer verification, OS access controls, transport encryption and a pilot.
-
-## Quickstart: three commands
-
-**1. Install** (Python 3.14 recommended; 3.11+ supported). `uv tool install` gives you a global `memkernel` command in its own isolated environment:
+With [uv](https://docs.astral.sh/uv/getting-started/installation/), install MemKernel
+in its own isolated Python environment:
 
 ```bash
-uv tool install memkernel-mcp
+uv tool install --python 3.14 memkernel-mcp
 ```
 
-`pipx install memkernel-mcp` does the same. For an existing isolated environment, use `pip install memkernel-mcp`.
+Alternatively, use `pipx install memkernel-mcp`, or `pip install memkernel-mcp`
+inside an existing virtual environment.
 
-The distribution is named **`memkernel-mcp`**; the Python import and commands remain `memkernel`. The `memkernel` project on PyPI belongs to a different author. Do not use `pip install memkernel` for this repository, or install both projects into the same Python environment. To install from source instead, use `uv tool install git+https://github.com/varadganjoo/MemKernel.git`.
+**Use the package name `memkernel-mcp`.** The separate `memkernel` package on PyPI
+belongs to another author. Do not install both into the same environment.
 
-**2. Attach** it to your agents, from your project's root directory:
+## Connect your agent
+
+Run the command for your agent **from your project's root directory**. You can
+connect one agent or several; you do not need to install all of them.
+
+### Codex desktop, CLI, and IDE extension
+
+```bash
+memkernel attach codex
+```
+
+This updates `~/.codex/config.toml`, shared by the local desktop app, CLI, and IDE
+extension on the same computer. The connection is global; each project discovers
+its own local memory database. Restart the desktop app or start a new CLI/IDE session
+after attaching.
+
+In the CLI, `codex mcp list` checks registration; `/mcp` in an interactive session
+shows active servers. In a new project chat, ask Codex to call
+`memkernel_query_state` to check the live connection.
+
+### Claude Code
+
+```bash
+memkernel attach claude-code
+```
+
+This writes the project's `.mcp.json`. Restart Claude Code in that project and
+approve the MemKernel server if prompted. Use `/mcp` to check that it is connected.
+Repeat the attach step for other projects.
+
+### Cursor
+
+```bash
+memkernel attach cursor
+```
+
+This writes `.cursor/mcp.json` in the project. Open that project in Cursor, enable
+MemKernel in Cursor's MCP settings, and start a new agent chat. Repeat the attach
+step for other projects.
+
+### Antigravity
+
+```bash
+memkernel attach antigravity
+```
+
+This updates Antigravity's MCP configuration under `~/.gemini/`. Refresh its MCP
+servers or restart the app. The configuration is global and discovers memory per
+project. For config locations and headless permissions, see the
+[integration guide](docs/integrations.md#antigravity).
+
+### Several agents at once
 
 ```bash
 memkernel attach claude-code cursor codex
 ```
 
-Use `all` to include Antigravity too. `attach` merges a `memkernel` entry into each agent's own MCP config and leaves the other servers in those files alone. It creates `.memkernel/` for the project's shared database and adds that directory to `.gitignore`. Global configs are backed up first. Re-running it is safe, and `--dry-run` shows the changes without writing them.
+Use `memkernel attach all` to include Antigravity. Each agent runs its own server;
+agents pointed at the same project database share memory on that computer.
 
-| Agent | File written | Scope |
-|---|---|---|
-| Claude Code | `./.mcp.json` | project |
-| Cursor | `./.cursor/mcp.json` | project |
-| Codex CLI | `~/.codex/config.toml` | global: each project gets its own memory via discovery |
-| Antigravity | `~/.gemini/.../mcp_config.json` | global: each project gets its own memory via discovery |
+### Other MCP clients and Python agents
 
-**3. Verify:**
+Other clients that support **local stdio MCP servers** can launch
+`memkernel serve`. Give each client a distinct `MEMKERNEL_AGENT_ID`, and ensure
+its working directory is the project root or set an explicit `MEMKERNEL_DB`.
+
+For JSON/TOML examples, absolute interpreter paths, and the in-process Python API,
+see [manual configuration](docs/integrations.md#manual-configuration).
+
+### Check the connection
+
+From the project root, run:
 
 ```bash
 memkernel doctor
 ```
 
-`doctor` opens the database, checks its hash chain, boots the MCP server over stdio exactly as an agent would, and checks every agent configuration. Then restart your agents. Each one now has `memkernel_*` tools, and they share one memory per project. To see what the agents currently remember:
+This checks the local database, its hash chain, a real MCP server startup, and
+agent configurations. Missing agents are reported as not attached; you only need
+the ones you use. Then inspect saved memory with:
 
 ```bash
 memkernel status
 ```
 
-> **Slow machine?** Cold start is dominated by importing the MCP SDK. Claude Code gives MCP servers 30 s to start; raise it with `MCP_TIMEOUT=120000`. The Codex config written by `attach` already allows 120 s.
+`attach` preserves other MCP entries, backs up existing global configs, creates
+`.memkernel/`, and adds it to `.gitignore` when the project root contains `.git`.
+Preview changes with `memkernel attach codex --dry-run`.
 
-Full per-agent details, manual configuration and troubleshooting are in [docs/integrations.md](https://github.com/varadganjoo/memkernel/blob/main/docs/integrations.md).
+**Cold start troubleshooting:** Codex gets a 120-second startup timeout from
+`attach`. For a slow Claude Code startup, see the
+[timeout instructions](docs/integrations.md#troubleshooting).
 
-### Try it without an agent
+## Try it in two sessions
 
-From a checkout:
+In a disposable project, ask your connected agent:
 
-```bash
-pip install -e ".[dev]"
-```
+> Use MemKernel to remember this project decision: our test fixtures use SQLite
+> because they must run offline. Save it with the key `test.database`.
 
-```bash
-pytest
-```
+Start a **new chat in the same project** and ask:
 
-Two simulations assert their invariants and exit non-zero on violation:
+> Query MemKernel. What database do our test fixtures use, and why?
 
-```bash
-python examples/multi_agent_collaboration.py
-```
+The second session should retrieve the saved decision without the first chat's
+history. Run `memkernel status` to inspect what was actually stored. A different
+connected agent can query the same database on that computer too.
 
-```bash
-python examples/rollback_on_hallucination.py
-```
+## What it gives you
 
-## Coordination notices and signed folder exchange
-
-For a team setup, initialize local signing identities with `memkernel sync init`,
-pin independently verified peers with `memkernel sync trust`, and set
-`MEMKERNEL_SYNC_CONFIG` in each agent's MCP server entry. The server publishes
-post/clear updates and polls the folder; it requires no hosted service. See the
-[complete setup and operations guide](docs/team-coordination.md).
-
-`memkernel_sync_now()` reports publish/import failures, and
-`memkernel_sync_status()` reports peer freshness and rejected transfers. Signed
-mode rejects unsigned imports and unauthorized authors. Run
-`python examples/signed_folder_sync.py` for a disposable two-database example
-covering signatures, tampering and replay protection without network calls.
-
-For a message like "I'm changing login, please coordinate before touching auth",
-use `memkernel_post_notice(resource="service:auth", message="Changing login")`.
-Every branch sees it in `memkernel_query_state().coordination_notices`. Branches
-represent investigations; authors participate in them. Switching branches,
-rollback and GC do not remove or restore workspace-wide notices.
-
-A notice has an immutable UUID, author, logical resource, message, creation time
-and expiry. Resources are case-sensitive names like `service:auth` or
-`repo:frontend/login`, never absolute paths on someone's laptop. The default TTL
-is one hour, with a range of one second to seven days. Expiry marks a notice
-**stale**, which means check with the author. Only an explicit
-`memkernel_clear_notice(notice_id)` marks it finished. To change a message or
-extend its expiry, clear it and post another notice.
-
-Two laptops keep **separate databases**. For manual exchange on unmanaged databases,
-explicitly export selected notice IDs
-with `memkernel_export_notices(notice_ids=[...])`, review the returned JSON,
-transfer it using your existing trusted channel, then pass its JSON text to
-`memkernel_import_notices(document=...)` on the other machine. Export without
-IDs includes the entire board, including cleared notices. Send later exports
-containing those cleared IDs so peers learn the work finished. Manual exchange
-does not sync automatically, and an unreceived update remains unknown to the other machine.
-
-Python harnesses use the same API through `kernel.notices`:
-
-```python
-notice = await kernel.notices.post(
-    agent_id="alice", resource="service:auth", message="Changing login"
-)
-document = await kernel.notices.export_json(notice_ids=[notice.notice_id])
-changed = await other_kernel.notices.import_json(document)
-await kernel.notices.clear(notice.notice_id, agent_id="alice")
-```
-
-Run the complete two-database example with `python examples/portable_notices.py`.
-It uses a temporary JSON file and makes no network or model calls.
-
-The versioned format is `memkernel.notices/v1`. Imports are transactional and
-idempotent. Conflicting immutable fields reject the whole batch. Clearing wins
-over active records in either arrival order; concurrent clears converge on the
-earliest clear timestamp without treating remote clocks as trusted ordering.
-Absence from a batch never clears a notice. Each exchange is limited to 1 MiB
-of UTF-8 JSON and 1,000 notices; export selected IDs to split larger boards.
-Messages are limited to 4,096 characters.
-
-**Trust and limits:** notices are advisory. Signed exchange pins peers and their
-allowed authors; local agents share an OS trust domain. Manual imports and
-unmanaged identities are self-asserted. Imported text remains untrusted data. Export includes notice
-text, so review it for sensitive content. It excludes decisions, scratchpads,
-local event IDs, leases and fencing tokens. Notices never enforce distributed
-locks or prevent file edits. Keep SQLite on local disk; exchange JSON, not live
-database files. No hosted MemKernel service is required.
-
-Notices live in an additive auxiliary table, separate from the hash-chained
-event log. Existing v1 databases are extended on writable open without changing
-events; read-only sessions can still inspect databases that lack the table.
-Notices are not in snapshots or the branch audit history, and GC does not compact
-them. `context_tokens` includes visible notices, with their separate contribution
-reported as `coordination_notice_tokens`. Clear finished notices to keep context
-small. Query/context limits notice content to 1,000 estimated tokens by default;
-`notice_page` explicitly reports omissions. Use `notice_resource`, `notice_offset`
-and `notice_token_budget` to inspect more, or paginate `memkernel_list_notices`.
-Cleared tombstones are retained; capacity and recovery procedures are in the team guide.
-
-## MCP tools
-
-| Tool | Purpose |
+| Capability | What it means in practice |
 |---|---|
-| `memkernel_query_state(branch_id="main", include_ephemeral=False)` | Consolidated memory as JSON: tasks, decisions, workspace facts, deprecated assumptions, blockers, claims, leases, coordination notices, recent events. |
-| `memkernel_post_notice(resource, message, ttl_seconds=3600)` | Post a workspace-wide advisory. Expiry marks it stale. |
-| `memkernel_clear_notice(notice_id)` | Explicitly clear your notice when finished. |
-| `memkernel_list_notices(resource=None, include_cleared=False)` | Inspect active and stale notices, optionally cleared history. |
-| `memkernel_export_notices(notice_ids=None)` | Export selected notices or the whole board, including clears. |
-| `memkernel_import_notices(document)` | Atomically merge a trusted collaborator's JSON export. Returns changed-record count. |
-| `memkernel_sync_now()` | Run preconfigured signed folder exchange and report failures. |
-| `memkernel_sync_status()` | Inspect peer freshness, sequence and last error without refreshing liveness. |
-| `memkernel_append_decision(decision_key, decision_value, rationale)` | Durable architectural decision. It survives compaction, and a new value supersedes the old one. |
-| `memkernel_acquire_lease(file_path, timeout_seconds=60)` | Exclusive lease with a TTL. Returns a fencing token, or the current holder. |
-| `memkernel_release_lease(file_path, fencing_token)` | Release. Returns `false` for a stale token. |
-| `memkernel_heartbeat_lease(file_path, fencing_token)` | Extend a held lease. |
-| `memkernel_fenced_append_decision(file_path, fencing_token, decision_key, decision_value, rationale)` | Record a decision only while the session agent holds the current, unexpired lease. The lease is recorded in event metadata. |
-| `memkernel_fork_investigation(fork_branch_name)` | Fork the active branch at its head and switch to it. |
-| `memkernel_checkout(branch_id)` | Switch the session's active branch. |
-| `memkernel_rollback(target_event_id)` | Revert the active branch's live timeline to an event. History stays auditable. |
-| `memkernel_history(limit=30)` | Recent live events, useful for picking rollback targets. |
-| `memkernel_diff_branches(branch_a, branch_b)` | Merge base, divergent events, conflicting decisions and facts. |
-| `memkernel_trigger_gc(target_branch="main")` | Compact now and report the token savings. |
-| `memkernel_init_task(directive, constraints)` | Record the agent's task and constraints. |
-| `memkernel_log_execution(command, exit_code, output, facts)` | Log tool output. A failure opens a blocker and a later success clears it. `facts` updates workspace state. |
-| `memkernel_note(note)` | Ephemeral scratchpad turn. |
-| `memkernel_list_branches()` | All branches, plus the session's active branch. |
+| Persistent decisions | Keep a decision and its rationale available across sessions. |
+| Memory branches | Explore an investigation separately and compare it with `main`. |
+| Rollback | Undo an investigation's memory changes while retaining audit history. Your code files are unaffected. |
+| Context compaction | Condense recorded history into bounded snapshots while preserving folded state. |
+| Local coordination | Cooperating agents can lease resources and share blockers. Leases do not prevent direct file edits. |
 
-## Concepts in one page
+## How it works
 
-**Events.** An event is an immutable `EventEnvelope` with fields `event_id`
-(globally monotonic), `sequence` (position in the branch lineage), `timestamp`,
-`branch_id`, `agent_id`, `parent_event_id` (lineage predecessor), `event_type`,
-`payload`, `metadata` and `hash = SHA-256(prev_hash ‖ canonical(event))`. The
-event types are `AGENT_TASK_INIT`, `ARCHITECTURAL_DECISION`,
-`FILE_CLAIM_ACQUIRED/RELEASED`, `TOOL_EXECUTION_LOG`, `AGENT_SCRATCHPAD`,
-`SEMANTIC_SNAPSHOT`, `BRANCH_FORKED` and `ROLLBACK_TRIGGERED`. SQLite triggers
-reject every `UPDATE` and `DELETE` on the event table.
+```mermaid
+flowchart LR
+    agents["Coding agents"] -->|"MCP tools"| servers["MemKernel server per agent"]
+    servers --> memory[("Project-local SQLite memory")]
+    memory --> recall["Decisions · branches · context"]
+```
 
-**Branches.** A branch is a pointer (parent, fork point, head). Its lineage is
-its parent's lineage up to the fork point, followed by its own events. Forking
-copies no rows.
+Memory lives at `<project>/.memkernel/memkernel.db`. With discovery enabled,
+MemKernel finds the nearest parent containing `.memkernel/` or `.git`.
+Keep the database on a local disk and out of version control.
 
-**Rollback.** A rollback is a compensating `ROLLBACK_TRIGGERED` event. The
-*live* timeline is a left fold in which a rollback truncates back to its
-target. Nothing is deleted, so the reverted events stay auditable and forkable.
+### Coordination notices and signed folder exchange
 
-**State.** `WorkspaceState = fold(live events)`. It holds tasks, decisions (with
-rationale and provenance), active workspace facts, deprecated or overruled
-assumptions, execution blockers, file claims, an execution digest, and insights.
+Separate laptops keep separate databases. Optional signed folder exchange shares
+**coordination notices**, such as "I'm working on authentication", through an
+operator-managed folder. It is off unless configured and requires no hosted
+MemKernel service.
 
-**GC.** When `[latest snapshot] + [delta]` exceeds the token budget, older delta
-events fold into a new `SEMANTIC_SNAPSHOT`, an exact serialization of the fold.
-The invariant `fold(snapshot, delta) == fold(full history)` is tested. The
-retained raw tail is bounded by both an event count and a token low-water mark,
-and every automatic compaction must free at least a quarter of the budget, so
-GC does not thrash.
+It does **not** sync full memories, decisions, branch history, leases, or fencing
+tokens. Direct LAN memory sync is not currently available.
+See [team setup and recovery](docs/team-coordination.md) and the
+[notice reference](docs/reference.md#coordination-notices-and-signed-folder-exchange).
 
-**Leases.** Leases are time-bounded, and every grant carries a fencing token
-that strictly increases per resource. `fenced_append` checks the token and
-appends in one transaction, so an expired or foreign holder cannot commit
-through that fenced event path. Ordinary memory appends and filesystem writes
-remain outside the fence. Renewals require the configured holder identity.
+## Safety and trust boundary
+
+MemKernel is experimental software. Local agent identities are self-asserted, and
+agents with filesystem access can read or modify local data. Treat stored and
+imported text as untrusted input.
+
+Leases coordinate cooperating agents; they do not lock source files. Signed
+notices authenticate configured peers but do not encrypt notice contents or
+enforce distributed locks. Use OS permissions, keep backups, and review sensitive
+actions independently.
+
+Read the [full trust boundary and read-only setup](docs/reference.md#safety-and-trust-boundary)
+before using shared or sensitive projects.
 
 ## Results
 
-These numbers come from `python benchmarks/run_benchmarks.py`. The full
-methodology is in [the whitepaper](https://github.com/varadganjoo/memkernel/blob/main/docs/whitepaper.md#5-empirical-evaluation--benchmarks).
+The repository includes [recorded live-agent runs](evidence/live-agents/20260928T161716Z/REPORT.md)
+and [reproducible benchmarks](docs/reference.md#results). The recorded workflow
+covers coordination, decisions, branching, rollback, and later recall.
 
-| Workflow | Events | Raw history tokens | MemKernel context tokens | Reduction | Snapshots | State equivalent |
-|---|---:|---:|---:|---:|---:|:---:|
-| single-agent-test-fix | 73 | 31,346 | 3,558 | 88.6% | 13 | yes |
-| multi-agent-refactor | 99 | 33,598 | 2,360 | 93.0% | 13 | yes |
-| lint-heavy-exploration | 73 | 42,445 | 3,459 | 91.9% | 19 | yes |
+See [verified client versions](docs/integrations.md#verified-configurations) for
+the distinction between live runs and configuration-only coverage.
 
-On a 50,000-event log, a warm (fast-path) context read takes 1.7 ms on Windows 11 and 1.1 ms on Linux, a fork at the head takes under 2 ms, and a cold open plus context read takes 21 ms on Windows 11 and 4.5 ms on Linux. Measured with Python 3.14.7 on Windows 11 (build 26200, SQLite 3.53.1) and in a Debian 13 container (SQLite 3.46.1) on the same workstation. The token results are the same on both platforms.
+## Documentation
 
-### Live agents, with evidence
-
-`benchmarks/live_agents.py` drives the real Claude Code, Codex CLI and Antigravity CLIs on a
-small repository with two failing tests. They coordinate only through MemKernel: leases,
-decisions, a fork with a rollback, and recall from shared memory. The script saves their
-transcripts, the event database, the code diff and the test results. The recorded run is
-in [`evidence/live-agents/20260928T161716Z/REPORT.md`](https://github.com/varadganjoo/memkernel/blob/main/evidence/live-agents/20260928T161716Z/REPORT.md).
-In that run, the concurrently started agents contended for the same file, one was refused
-and took other work, both bugs were fixed, and the hash chain verified intact in an
-independent Linux container.
-
-## Repository layout
-
-```text
-memkernel/
-├── core/events.py        event taxonomy, envelope schema, hashing
-├── core/store.py         AsyncEventStore: WAL, lineage, fork, rollback, diff, verify
-├── core/branch.py        pure lineage algebra: live fold, rollback planning, diff, chain verification
-├── core/locks.py         LockManager: leases, heartbeats, fencing tokens
-├── memory/state_view.py  WorkspaceState fold, context split, rendering
-├── memory/gc.py          MemoryGCEngine, heuristic and LLM summarizers, daemon
-├── memory/token_counter.py  tiktoken with a conservative regex fallback
-├── kernel.py             MemKernel facade (atomic lease+claim, fenced appends)
-├── server/mcp_server.py  MCP server over stdio
-├── clients/adapter.py    MemKernelClient (in-process) and McpStdioClient
-└── cli.py                `memkernel` command: attach, doctor, status, serve
-examples/                 multi-agent and rollback simulations
-benchmarks/               reproducible measurements and the live-agent harness
-evidence/                 recorded live-agent run (transcripts, database, report)
-docs/                     whitepaper and integration guide
-tests/                    store, branching, locks, GC, server and stdio e2e
-```
+- [Agent integrations and troubleshooting](docs/integrations.md)
+- [MCP tools, architecture, concepts, and benchmark details](docs/reference.md)
+- [Signed team coordination, backups, and recovery](docs/team-coordination.md)
+- [Whitepaper](docs/whitepaper.md)
 
 ## Development
 
-```bash
-pytest
-```
-
-The suite runs offline and is deterministic. One opt-in test exercises
-`LLMSummarizer` against a real OpenAI-compatible model:
+From a source checkout, create a virtual environment and install development dependencies:
 
 ```bash
-MEMKERNEL_LIVE_LLM_TESTS=1 OPENAI_API_KEY=... OPENAI_LLM=<model> pytest -k live
+uv venv
+uv pip install -e ".[dev]"
+uv run pytest
 ```
+
+See the [examples](examples/) for local simulations that need no agent subscription.
 
 ## Limitations
 
-- **Single host.** Coordination relies on SQLite file locking on one machine; network filesystems are not supported. A replicated log is future work (see the whitepaper).
-- **Self-asserted identity.** `agent_id` comes from the server's launch configuration. MemKernel records provenance but does not authenticate agents; see the threat model.
-- **O(lineage) operations.** Rollback, arbitrary-point forks and full replay are linear in lineage length. Context reads and forks at the head are not.
-- **No automatic merge.** `diff` reports conflicts. Reconciling them is an agent's (or a human's) decision, recorded as a new `ARCHITECTURAL_DECISION`.
+- Local SQLite coordination runs on one host; network filesystems are unsupported.
+- Cross-machine exchange covers signed notices, not complete memory.
+- Branch conflicts need an agent or human decision; there is no automatic merge.
+- Resource leases are advisory for filesystem edits.
+- Experimental software with no enterprise security certification.
 
 ## License
 
-MIT. See [LICENSE](https://github.com/varadganjoo/memkernel/blob/main/LICENSE).
+[MIT](LICENSE).
 
