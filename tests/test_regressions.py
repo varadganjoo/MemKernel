@@ -39,6 +39,22 @@ async def test_snapshot_must_preserve_covered_state(store, change):
     assert not await store.verify_branch("main")
 
 
+@pytest.mark.parametrize("original,replacement", [(1, True), (1, 1.0), ({"enabled": 0}, {"enabled": False})],
+                         ids=["boolean", "float", "nested-boolean"])
+async def test_snapshot_preserves_json_fact_types(store, original, replacement):
+    covered = await store.append(ev(EventType.TOOL_EXECUTION_LOG, command="probe", exit_code=0,
+                                    facts={"policy": original}))
+    state = materialize(await store.read_live("main")).sections()
+    state["active_workspace_facts"]["policy"]["value"] = replacement
+    with pytest.raises(ValueError, match="preserve"):
+        await store.append(ev(
+            EventType.SEMANTIC_SNAPSHOT, schema=SNAPSHOT_SCHEMA,
+            covers_through_event_id=covered.event_id,
+            covers_through_sequence=covered.sequence, **state,
+        ))
+    assert (await store.get_branch("main")).head_event_id == covered.event_id
+
+
 async def test_snapshot_accepts_exact_state_and_summarizer_insights(store):
     covered = await store.append(decision("storage", "sqlite"))
     state = materialize(await store.read_live("main")).sections()

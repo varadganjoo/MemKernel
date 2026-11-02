@@ -12,15 +12,15 @@ a public service, authenticated local agent identities, or distributed file lock
 
 | Measure | 0.3.0 | 0.3.1 | Meaning |
 |---|---:|---:|---|
-| Passing tests in the normal suite | 159 | 186 | 27 more cases, a 17.0% increase |
-| Failures in the new regression suite | 26 / 27 | 0 / 27 | The same cases were run against both installed implementations |
-| Passing controls in that regression suite | 1 | 27 | Includes real independent MCP sessions |
+| Passing tests in the normal suite | 159 | 189 | 30 more cases, an 18.9% increase |
+| Failures in the new regression suite | 29 / 30 | 0 / 30 | The same cases were run against both installed implementations |
+| Passing controls in that regression suite | 1 | 30 | Includes real independent MCP sessions |
 | Python minor versions exercised by CI | 3.11, 3.14 | 3.11, 3.12, 3.13, 3.14 | Two additional Linux matrix entries |
 | CI jobs, including dependency and wheel jobs | 9 | 11 | Both MCP SDK generations remain covered |
 | New runtime dependencies | — | 0 | Reuses the existing atomic writer and standard library |
 
-Final local coverage is **91.1% of statements** and **83.0% of branches**; the
-combined coverage measure is 89.4%. This is coverage of the Python library, not
+Final local coverage is **90.9% of statements** and **82.8% of branches**; the
+combined coverage measure is 89.3%. This is coverage of the Python library, not
 proof that every possible failure is tested. Baseline coverage was not measured
 in a comparable successful run, so no coverage improvement is claimed.
 
@@ -33,10 +33,10 @@ medians. This workstation was not a controlled device-performance environment.
 
 | Metric | 0.3.0 | 0.3.1 | Observed change |
 |---|---:|---:|---|
-| Warm context read, 5,000 events | 1.34 ms | 1.63 ms | 21.3% slower in this sample |
-| Cold open and recall, 5,000 events | 22.92 ms | 19.28 ms | 15.9% faster in this sample |
-| Durable single-writer appends | 659 / s | 634 / s | 3.7% lower throughput |
-| Bulk load, 5,000 events | 1,081 / s | 1,079 / s | Approximately unchanged |
+| Warm context read, 5,000 events | 1.50 ms | 1.00 ms | 33.7% faster in this sample |
+| Cold open and recall, 5,000 events | 23.27 ms | 20.01 ms | 14.0% faster in this sample |
+| Durable single-writer appends | 814 / s | 603 / s | 25.9% lower throughput in this sample |
+| Bulk load, 5,000 events | 1050 / s | 933 / s | 11.1% lower throughput in this sample |
 | Context reduction: single-agent workflow | 88.6% | 88.6% | Preserved |
 | Context reduction: multi-agent workflow | 93.0% | 93.0% | Preserved |
 | Context reduction: lint-heavy workflow | 91.8% | 91.8% | Preserved |
@@ -73,7 +73,7 @@ relative to the documented local/cooperative trust boundary.
 
 | Priority | Failure and consequence | Smallest complete repair | Evidence |
 |---|---|---|---|
-| Must fix | A schema-valid snapshot could erase decisions, replace their values, or forge provenance while the hash chain still verified. | Compare snapshot core state against replay of the covered live prefix before appending. Summarizer insights remain separate. | Three negative cases plus a valid snapshot control in `test_regressions.py`; existing repeated-GC/rollback tests |
+| Must fix | A schema-valid snapshot could erase decisions, replace values or JSON types, or forge provenance while the hash chain still verified. | Compare canonical JSON for snapshot core state against replay of the covered live prefix before appending. Summarizer insights remain separate. | Six negative cases plus a valid snapshot control in `test_regressions.py`; existing repeated-GC/rollback tests |
 | Must fix | Frozen envelopes contain mutable dictionaries. Mutation after construction bypassed the payload/metadata byte cap. NaN and infinities also entered nominal JSON. | Revalidate and detach at the persistence boundary; reject new non-finite JSON values. Preserve the historical hash serializer. | Two oversized-input cases and three non-finite cases |
 | Must fix | A failed commit, or cancellation after BEGIN, left a transaction open; later operations failed until restart. | Include BEGIN/body/COMMIT in one failure path and queue a rollback on error. | Real deferred foreign-key commit failure and deterministic startup cancellation |
 | Must fix | Tokenizer initialization errors left an open database worker. | Keep all post-open initialization inside the existing close-on-failure block. | Tracked connection is closed after invalid tokenizer input |
@@ -96,9 +96,9 @@ CI and publication must be verified separately against their actual revisions.
 
 | Gate | Status | Evidence and limits |
 |---|---|---|
-| Python 3.11 / MCP 2.3.0 | PASS | 186 passed, 3 skipped; real SQLite and MCP subprocesses |
-| Python 3.14.10 / MCP 1.30.0 | PASS | 186 passed, 3 skipped |
-| New regression suite against published 0.3.0 | Confirmed baseline failures | 26 failed, 1 passed; fails for the expected behaviors |
+| Python 3.11 / MCP 2.3.0 | PASS | 189 passed, 3 skipped; real SQLite and MCP subprocesses |
+| Python 3.14.10 / MCP 1.30.0 | PASS | 189 passed, 3 skipped |
+| New regression suite against published 0.3.0 | Confirmed baseline failures | 29 failed, 1 passed; fails for the expected behaviors |
 | Syntax/import checks | PASS | Ruff 0.17.3, isolated `E9,F`; broader style rewrites deliberately excluded |
 | Examples | PASS | All four examples, including three-process collaboration and signed-folder exchange |
 | Wheel and source archive | PASS | Build and `twine check --strict` |
@@ -139,6 +139,10 @@ Applied enterprise-app-dev routing/release evidence, Ponytail implementation and
 audit/review, Superpowers systematic debugging and verification, OWASP code review,
 MCP review, secret-pattern and dependency audits, and the IBM five-pillar workflow.
 Regression cases were demonstrated failing before fixes and passing afterward.
+An independent reviewer found the numeric/boolean equality gap in the first
+snapshot comparison. It was reproduced, repaired with canonical JSON comparison,
+and covered by three additional cases before merge. The follow-up review found no
+outstanding issue, conditional on the final suite and CI results.
 Spellbook Python/API/testing guidance informed async cleanup and public-contract
 checks. Minimalist review constrained the roadmap to immediate user friction.
 

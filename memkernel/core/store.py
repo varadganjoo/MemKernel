@@ -484,7 +484,7 @@ class AsyncEventStore:
             )
         state = WorkspaceState.from_snapshot(envelope)
         prefix = [e for e in live if e.sequence <= covered_seq]
-        if state.core_sections() != materialize(prefix).core_sections():
+        if canonical_json(state.core_sections()) != canonical_json(materialize(prefix).core_sections()):
             raise ValueError("snapshot must preserve the covered event state and provenance")
 
     # -------------------------------------------------------------------- read
