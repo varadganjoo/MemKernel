@@ -249,7 +249,7 @@ async def memkernel_append_decision(decision_key: str, decision_value: str, rati
 
 
 @_tool
-async def memkernel_query_state(branch_id: str = DEFAULT_BRANCH, include_ephemeral: bool = False,
+async def memkernel_query_state(branch_id: str | None = None, include_ephemeral: bool = False,
                                notice_resource: str | None = None, notice_token_budget: StrictInt = 1000,
                                notice_offset: StrictInt = 0) -> str:
     """Return the consolidated memory of a branch as JSON: tasks, decisions,
@@ -257,7 +257,7 @@ async def memkernel_query_state(branch_id: str = DEFAULT_BRANCH, include_ephemer
     claims, active leases, workspace-wide coordination notices and recent events. Set include_ephemeral=true to also
     see raw tool-execution logs and scratchpad notes not yet compacted."""
     kernel = await SESSION.kernel()
-    state = await kernel.query_state(branch_id, include_ephemeral=include_ephemeral, notice_resource=notice_resource,
+    state = await kernel.query_state(SESSION.branch if branch_id is None else branch_id, include_ephemeral=include_ephemeral, notice_resource=notice_resource,
                                      notice_token_budget=notice_token_budget, notice_offset=notice_offset)
     state["active_branch"] = SESSION.branch
     state["agent_id"] = SESSION.agent_id
@@ -467,11 +467,11 @@ async def memkernel_rollback(target_event_id: int) -> str:
 
 
 @_tool
-async def memkernel_trigger_gc(target_branch: str = DEFAULT_BRANCH) -> dict[str, Any]:
+async def memkernel_trigger_gc(target_branch: str | None = None) -> dict[str, Any]:
     """Compact a branch's memory now, folding older tool logs and notes into a
     semantic snapshot. Reports token counts before/after."""
     kernel = await SESSION.kernel()
-    result = await kernel.gc(target_branch, force=True)
+    result = await kernel.gc(SESSION.branch if target_branch is None else target_branch, force=True)
     return result.model_dump()
 
 

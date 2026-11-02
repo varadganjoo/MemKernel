@@ -134,7 +134,7 @@ class EventEnvelope(BaseModel):
     @classmethod
     def _json_safe(cls, v: dict[str, Any]) -> dict[str, Any]:
         try:
-            encoded = canonical_json(v)
+            encoded = json.dumps(v, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
         except (TypeError, ValueError) as exc:
             raise ValueError(f"payload/metadata must be JSON-serializable: {exc}") from exc
         if len(encoded.encode("utf-8")) > MAX_EVENT_BYTES:

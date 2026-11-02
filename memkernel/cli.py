@@ -11,7 +11,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import os
 import re
 import sys
 import tomllib
@@ -20,6 +19,7 @@ from importlib import metadata
 from pathlib import Path
 from typing import Any, Callable
 
+from memkernel.core.events import validate_agent_id
 from memkernel.kernel import DEFAULT_BRANCH, MemKernel, default_db_path
 
 SERVER_NAME = "memkernel"
@@ -96,10 +96,32 @@ def build_entry(client: Client, *, project: Path, db: Path | None, portable: boo
 
 
 def _atomic_write(path: Path, text: str) -> None:
+    from memkernel.sync import atomic_write
+
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".memkernel-tmp")
-    tmp.write_text(text, encoding="utf-8")
-    os.replace(tmp, path)
+    atomic_write(path, text.encode("utf-8"))
+
+
+def _updated_entry(existing: Any, entry: dict[str, Any]) -> dict[str, Any]:
+    if existing is None:
+        return entry
+    if not isinstance(existing, dict) or not isinstance(existing.get("env", {}), dict):
+        raise AttachError("existing memkernel configuration must contain an object with an env object")
+    env = {**existing.get("env", {}), **entry["env"]}
+    if not all(isinstance(k, str) and isinstance(v, str) for k, v in env.items()):
+        raise AttachError("existing memkernel environment values must be strings")
+    args = existing.get("args", [])
+    if not isinstance(args, list) or not all(isinstance(arg, str) for arg in args):
+        raise AttachError("existing memkernel args must be a list of strings")
+    extra = []
+    if args:
+        for prefix in (["-m", SERVER_MODULE], ["serve"]):
+            if args[:len(prefix)] == prefix:
+                extra = args[len(prefix):]
+                break
+        else:
+            raise AttachError("custom memkernel launch arguments cannot be safely replaced; update this entry manually")
+    return {**existing, **entry, "args": [*entry["args"], *extra], "env": env}
 
 
 def merge_json_config(path: Path, entry: dict[str, Any]) -> tuple[str, str]:
@@ -115,6 +137,7 @@ def merge_json_config(path: Path, entry: dict[str, Any]) -> tuple[str, str]:
         if not isinstance(data, dict) or not isinstance(data.get("mcpServers", {}), dict):
             raise AttachError(f"{path}: expected an object with an 'mcpServers' object")
     servers = data.setdefault("mcpServers", {})
+    entry = _updated_entry(servers.get(SERVER_NAME), entry)
     action = "unchanged" if servers.get(SERVER_NAME) == entry else ("updated" if SERVER_NAME in servers else "added")
     servers[SERVER_NAME] = entry
     return action, json.dumps(data, indent=2) + "\n"
@@ -125,7 +148,7 @@ _ANY_TABLE = re.compile(r"^\s*\[")
 
 
 def _toml_str(value: str) -> str:
-    return json.dumps(value)  # JSON string escapes are valid TOML basic strings
+    return json.dumps(value, ensure_ascii=False)
 
 
 def merge_toml_config(path: Path, entry: dict[str, Any]) -> tuple[str, str]:
@@ -133,12 +156,19 @@ def merge_toml_config(path: Path, entry: dict[str, Any]) -> tuple[str, str]:
     ``config.toml``. The result is re-parsed and verified before returning."""
     original = path.read_text(encoding="utf-8") if path.exists() else ""
     try:
-        existing = tomllib.loads(original).get("mcp_servers", {}).get(SERVER_NAME)
+        original_data = tomllib.loads(original)
     except tomllib.TOMLDecodeError as exc:
         raise AttachError(f"{path} is not valid TOML ({exc}); fix it, then re-run") from exc
-    expected = dict(entry, default_tools_approval_mode="approve", startup_timeout_sec=CODEX_STARTUP_TIMEOUT_SEC)
+    if not isinstance(original_data.get("mcp_servers", {}), dict):
+        raise AttachError(f"{path}: expected an 'mcp_servers' table")
+    existing = original_data.get("mcp_servers", {}).get(SERVER_NAME)
+    expected = _updated_entry(existing, entry)
+    expected.setdefault("default_tools_approval_mode", "approve")
+    expected.setdefault("startup_timeout_sec", CODEX_STARTUP_TIMEOUT_SEC)
     if existing == expected:
         return "unchanged", original
+    if expected.keys() - {"command", "args", "env", "default_tools_approval_mode", "startup_timeout_sec"}:
+        raise AttachError(f"{path}: custom memkernel settings cannot be safely replaced; update this entry manually")
 
     kept, skipping = [], False
     for line in original.splitlines():
@@ -148,25 +178,26 @@ def merge_toml_config(path: Path, entry: dict[str, Any]) -> tuple[str, str]:
             kept.append(line)
     block = [
         f"[mcp_servers.{SERVER_NAME}]",
-        f"command = {_toml_str(entry['command'])}",
-        "args = [" + ", ".join(_toml_str(a) for a in entry["args"]) + "]",
+        f"command = {_toml_str(expected['command'])}",
+        "args = [" + ", ".join(_toml_str(a) for a in expected["args"]) + "]",
         "# Lets non-interactive `codex exec` call MemKernel tools (memory writes only).",
-        'default_tools_approval_mode = "approve"',
+        f"default_tools_approval_mode = {_toml_str(expected['default_tools_approval_mode'])}",
         "# The MCP SDK import dominates cold start; allow for slow or heavily loaded machines.",
-        f"startup_timeout_sec = {CODEX_STARTUP_TIMEOUT_SEC}",
+        f"startup_timeout_sec = {json.dumps(expected['startup_timeout_sec'])}",
         "",
         f"[mcp_servers.{SERVER_NAME}.env]",
-        *(f"{k} = {_toml_str(v)}" for k, v in entry["env"].items()),
+        *(f"{_toml_str(k)} = {_toml_str(v)}" for k, v in expected["env"].items()),
     ]
     head = "\n".join(kept).rstrip()
     text = (head + "\n\n" if head else "") + "\n".join(block) + "\n"
+    original_data.setdefault("mcp_servers", {})[SERVER_NAME] = expected
     try:
-        parsed = tomllib.loads(text).get("mcp_servers", {}).get(SERVER_NAME)
+        parsed = tomllib.loads(text)
     except tomllib.TOMLDecodeError as exc:
         parsed, detail = None, str(exc)
     else:
         detail = "entry did not round-trip"
-    if parsed != expected:
+    if parsed != original_data:
         raise AttachError(
             f"could not safely update {path} ({detail}); 'memkernel' may be defined with dotted keys. "
             "Remove it from the file and re-run, or use `codex mcp add` (see docs/integrations.md)."
@@ -200,6 +231,10 @@ def attach(
 ) -> list[dict[str, str]]:
     """Register the MemKernel server with each client. Returns a report."""
     project = project.resolve()
+    if agent_id is not None:
+        validate_agent_id(agent_id)
+    if db is not None:
+        db = db.expanduser().resolve()
     report: list[dict[str, str]] = []
     if not dry_run:
         (project / ".memkernel").mkdir(parents=True, exist_ok=True)  # anchors DB discovery
@@ -216,7 +251,7 @@ def attach(
             if action != "unchanged" and not dry_run:
                 if path.exists() and not client.project_scoped:
                     backup = path.with_name(path.name + ".memkernel.bak")
-                    backup.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+                    _atomic_write(backup, path.read_text(encoding="utf-8"))
                 _atomic_write(path, text)
             report.append({"client": name, "path": str(path), "action": action + (" (dry run)" if dry_run else ""),
                            "hint": client.hint})
@@ -392,7 +427,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             report = attach(names, project=args.project, home=home, db=args.db, portable=args.portable,
                             agent_id=args.agent_id, dry_run=args.dry_run)
-        except AttachError as exc:
+        except (AttachError, ValueError) as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 1
         for item in report:

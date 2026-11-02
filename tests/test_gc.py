@@ -281,8 +281,8 @@ def test_blocker_description_prefers_diagnostic_lines() -> None:
 
 async def test_low_water_mark_prevents_gc_thrash(store: AsyncEventStore) -> None:
     gc = MemoryGCEngine(store, counter=TokenCounter("heuristic"),
-                        config=GCConfig(max_token_threshold=3000, retain_recent_events=4))
-    assert gc.config.tail_budget == 1500
+                        config=GCConfig(max_token_threshold=12000, retain_recent_events=4))
+    assert gc.config.tail_budget == 6000
     snapshots = 0
     for i in range(40):
         await store.append(tool_log(i))
@@ -291,10 +291,10 @@ async def test_low_water_mark_prevents_gc_thrash(store: AsyncEventStore) -> None
         if result.triggered:
             context = await store.context_events("main")
             tail = gc.counter.count(render_context(None, context.delta))
-            assert tail <= 1500
+            assert tail <= 6000
     # Each compaction frees at least half the budget, so GC runs far less than once per append.
     assert 0 < snapshots <= 40 // 2
-    assert await gc.measure("main") <= 3000 + gc.counter.count(render_context(None, [tool_log(0)]))
+    assert await gc.measure("main") <= 12000 + gc.counter.count(render_context(None, [tool_log(0)]))
 
 
 async def test_fork_at_head_inherits_snapshot_pointer(store: AsyncEventStore) -> None:

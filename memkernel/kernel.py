@@ -137,14 +137,10 @@ class MemKernel:
                 await store.get_branch(DEFAULT_BRANCH)
             else:
                 await store.ensure_branch(DEFAULT_BRANCH)
-        except BaseException:
-            await store.close()
-            raise
-        gc = MemoryGCEngine(
-            store, counter=TokenCounter(tokenizer), summarizer=summarizer, config=gc_config
-        )
-        kernel = cls(store, locks=LockManager(store, clock=lease_clock), gc=gc, auto_gc=auto_gc and not read_only)
-        try:
+            gc = MemoryGCEngine(
+                store, counter=TokenCounter(tokenizer), summarizer=summarizer, config=gc_config
+            )
+            kernel = cls(store, locks=LockManager(store, clock=lease_clock), gc=gc, auto_gc=auto_gc and not read_only)
             async with store.transaction(write=False) as db:
                 async with db.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sync_identity'") as cur:
                     exists = await cur.fetchone()

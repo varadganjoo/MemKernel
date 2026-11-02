@@ -44,7 +44,7 @@ from memkernel.core.events import (
     validate_agent_id,
     validate_branch_id,
 )
-from memkernel.memory.state_view import SNAPSHOT_SCHEMA, WorkspaceState, split_context
+from memkernel.memory.state_view import SNAPSHOT_SCHEMA, WorkspaceState, materialize, split_context
 
 SCHEMA_VERSION = 1
 
@@ -241,6 +241,8 @@ class AsyncEventStore:
         if synchronous.upper() not in {"OFF", "NORMAL", "FULL", "EXTRA"}:
             raise ValueError(f"invalid synchronous mode {synchronous!r}")
         self.path = str(path)
+        if self.path != ":memory:" and not self.path.startswith("file:"):
+            self.path = str(Path(self.path).expanduser())
         self._synchronous = synchronous.upper()
         self._busy_timeout_ms = int(busy_timeout_ms)
         self._clock = clock
@@ -345,15 +347,14 @@ class AsyncEventStore:
         assert self._lock is not None
         async with self._lock:
             db = self._db
-            await db.execute("BEGIN IMMEDIATE" if write else "BEGIN")
             try:
+                await db.execute("BEGIN IMMEDIATE" if write else "BEGIN")
                 yield db
-            except BaseException:
-                if db.in_transaction:
-                    await db.execute("ROLLBACK")
-                raise
-            else:
                 await db.execute("COMMIT")
+            except BaseException:
+                # Queue behind a possibly cancelled BEGIN, even if it has not run yet.
+                await db.rollback()
+                raise
 
     # ---------------------------------------------------------------- branches
 
@@ -413,6 +414,8 @@ class AsyncEventStore:
         """Append inside a caller-held ``transaction(write=True)``."""
         if envelope.event_id is not None or envelope.hash is not None:
             raise ValueError("envelope is already persisted (event_id/hash set)")
+        # Frozen models still contain mutable dictionaries; validate and detach at the write boundary.
+        envelope = EventEnvelope(**envelope.to_dict())
         if envelope.event_type in CONTROL_TYPES and not _control:
             raise ValueError(
                 f"{envelope.event_type.value} events are kernel-issued; "
@@ -479,7 +482,10 @@ class AsyncEventStore:
                 f"snapshot covers event {covered_id} (seq {covered_seq}), which is not live on "
                 f"branch {envelope.branch_id!r}"
             )
-        WorkspaceState.from_snapshot(envelope)  # schema-validates every section
+        state = WorkspaceState.from_snapshot(envelope)
+        prefix = [e for e in live if e.sequence <= covered_seq]
+        if canonical_json(state.core_sections()) != canonical_json(materialize(prefix).core_sections()):
+            raise ValueError("snapshot must preserve the covered event state and provenance")
 
     # -------------------------------------------------------------------- read
 
