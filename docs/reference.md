@@ -182,7 +182,7 @@ Cleared tombstones are retained; capacity and recovery procedures are in the tea
 
 | Tool | Purpose |
 |---|---|
-| `memkernel_query_state(branch_id="main", include_ephemeral=False)` | Consolidated memory as JSON: tasks, decisions, workspace facts, deprecated assumptions, blockers, claims, leases, coordination notices, recent events. |
+| `memkernel_query_state(branch_id=None, include_ephemeral=False)` | Consolidated memory as JSON: tasks, decisions, workspace facts, deprecated assumptions, blockers, claims, leases, coordination notices, recent events. Defaults to the session's active branch. Pass `"main"` explicitly to inspect main. |
 | `memkernel_post_notice(resource, message, ttl_seconds=3600)` | Post a workspace-wide advisory. Expiry marks it stale. |
 | `memkernel_clear_notice(notice_id)` | Explicitly clear your notice when finished. |
 | `memkernel_list_notices(resource=None, include_cleared=False)` | Inspect active and stale notices, optionally cleared history. |
@@ -200,7 +200,7 @@ Cleared tombstones are retained; capacity and recovery procedures are in the tea
 | `memkernel_rollback(target_event_id)` | Revert the active branch's live timeline to an event. History stays auditable. |
 | `memkernel_history(limit=30)` | Recent live events, useful for picking rollback targets. |
 | `memkernel_diff_branches(branch_a, branch_b)` | Merge base, divergent events, conflicting decisions and facts. |
-| `memkernel_trigger_gc(target_branch="main")` | Compact now and report the token savings. |
+| `memkernel_trigger_gc(target_branch=None)` | Compact the active branch and report the token savings. An explicit branch overrides the session default. |
 | `memkernel_init_task(directive, constraints)` | Record the agent's task and constraints. |
 | `memkernel_log_execution(command, exit_code, output, facts)` | Log tool output. A failure opens a blocker and a later success clears it. `facts` updates workspace state. |
 | `memkernel_note(note)` | Ephemeral scratchpad turn. |

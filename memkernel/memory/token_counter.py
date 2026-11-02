@@ -3,32 +3,22 @@
 Uses ``tiktoken`` (``cl100k_base``) when its encoding can be loaded; the
 first load may need network access to fetch the BPE file. When it cannot be
 loaded, or when ``backend="heuristic"`` (or ``MEMKERNEL_TOKENIZER=heuristic``)
-is requested, a regex estimator is used instead. The heuristic is deliberately
-conservative (it over-counts relative to BPE tokenizers), which is the safe
-direction for a budget.
+is requested, UTF-8 byte length is used as an upper bound for byte-level BPE
+tokens. This deliberately over-counts, including multilingual text and
+whitespace, so an offline device does not silently under-budget context.
 """
 
 from __future__ import annotations
 
 import logging
 import os
-import re
 from functools import lru_cache
 from typing import Any
 
 log = logging.getLogger(__name__)
 
-# Letter runs, digit runs of <= 3 (as cl100k splits numbers), or any single
-# other non-space character.
-_TOKEN_RE = re.compile(r"[^\W\d_]+|\d{1,3}|[^\s]", re.UNICODE)
-
-
 def heuristic_count(text: str) -> int:
-    total = 0
-    for match in _TOKEN_RE.finditer(text):
-        piece = match.group(0)
-        total += (len(piece) + 3) // 4 if piece[0].isalpha() else 1
-    return total
+    return len(text.encode("utf-8"))
 
 
 @lru_cache(maxsize=4)

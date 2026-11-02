@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import sys
 from contextlib import AsyncExitStack, asynccontextmanager
@@ -20,6 +21,8 @@ from typing import Any, AsyncIterator
 from memkernel.core.events import EventEnvelope, EventType, new_event, validate_agent_id, validate_branch_id
 from memkernel.kernel import DEFAULT_BRANCH, LeaseGrant, MemKernel
 from memkernel.memory.gc import GCResult
+
+log = logging.getLogger(__name__)
 
 
 class LeaseUnavailableError(RuntimeError):
@@ -176,9 +179,15 @@ class MemKernelClient:
         async def beat() -> None:
             while True:
                 await asyncio.sleep(ttl_seconds / 3)
-                if not await self.kernel.heartbeat_lease(
-                    resource=grant.resource, fencing_token=handle.fencing_token, agent_id=self.agent_id
-                ):
+                try:
+                    renewed = await self.kernel.heartbeat_lease(
+                        resource=grant.resource, fencing_token=handle.fencing_token, agent_id=self.agent_id
+                    )
+                except Exception:
+                    handle._lost.set()
+                    log.warning("lease heartbeat failed; stop writing and re-acquire the lease")
+                    return
+                if not renewed:
                     handle._lost.set()
                     return
 

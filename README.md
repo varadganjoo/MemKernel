@@ -21,6 +21,11 @@ retrieve memory through tools; it does not automatically import their chat histo
 
 [Install](#install) · [Choose your agent](#connect-your-agent) · [Try it](#try-it-in-two-sessions) · [Integration guide](docs/integrations.md) · [Technical reference](docs/reference.md)
 
+**0.3.1 reliability review:** 26 reproduced failure cases fixed, 27 regression cases
+added, and 186 tests passing in each of two local Python/MCP environments. Existing
+token savings are preserved. See the [before/after scorecard and limits](docs/reviews/production-readiness-0.3.1.md),
+[changelog](CHANGELOG.md), and [proposed capability roadmap](docs/roadmap.md).
+
 > **Experimental:** start with a disposable project. Keep secrets and personal data out
 > of memory, and review what agents save. Memory is untrusted input, not authority.
 

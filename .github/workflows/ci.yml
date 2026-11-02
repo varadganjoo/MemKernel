@@ -23,6 +23,12 @@ jobs:
         python: ["3.11", "3.14"]
         mcp: ["latest"]
         include:
+          - os: ubuntu-latest
+            python: "3.12"
+            mcp: "latest"
+          - os: ubuntu-latest
+            python: "3.13"
+            mcp: "latest"
           # The 1.x SDK line exposes FastMCP; 2.x renamed it to MCPServer.
           - os: ubuntu-latest
             python: "3.11"
@@ -40,6 +46,10 @@ jobs:
           python -m pip install -e ".[dev]"
       - name: Tests
         run: python -m pytest -q
+      - name: Syntax and import checks
+        run: |
+          python -m pip install ruff==0.17.3
+          python -m ruff check --isolated --select E9,F memkernel tests
       - name: Examples
         shell: bash
         run: |

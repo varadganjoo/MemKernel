@@ -58,6 +58,11 @@ event and lease, and it is how agents see who decided what.
   valid JSON or TOML is never overwritten (`attach` stops and says why). Global files
   are backed up to `<file>.memkernel.bak` before a change. Re-running reports
   `unchanged`.
+- Reattaching preserves existing environment overrides, server flags, and Codex
+  approval/startup preferences. Unsupported custom launchers or TOML settings
+  cause a readable error instead of silently discarding settings. Update those
+  entries manually. Relative `--db` paths are made absolute from the directory
+  where you run `attach`, so clients with different working directories share it.
 - **Codex extras.** `default_tools_approval_mode = "approve"` lets non-interactive
   `codex exec` call MemKernel tools, which only read and write memory; without it,
   Codex cancels the calls. `startup_timeout_sec = 120` tolerates slow cold starts.
@@ -196,6 +201,13 @@ async with McpStdioClient(agent_id="my-harness", db_path=".memkernel/memkernel.d
 | `MEMKERNEL_READ_ONLY` / `--read-only` | `false` | Open an existing database read-only and reject mutation tools. Background GC must be off. Invalid environment values fail startup. |
 | `MEMKERNEL_TOKENIZER` | `auto` | `auto`, `tiktoken` or `heuristic`. |
 | `MEMKERNEL_LOG_LEVEL` / `--log-level` | `WARNING` | Server log level (logs go to stderr; stdout carries MCP). |
+
+`heuristic` works without network access and counts UTF-8 bytes as a conservative
+upper bound for byte-level BPE tokens. It can compact sooner and fit fewer notices
+than `tiktoken`. `auto` tries the tiktoken encoding, then falls back to that bound.
+Reported context tokens measure the rendered memory text, not the entire JSON MCP
+response or a model's full conversation. Durable decisions can exceed a configured
+budget; MemKernel preserves them rather than deleting them to meet the budget.
 
 `memkernel serve [flags]` and `memkernel-server [flags]` are equivalent to
 `python -m memkernel.server.mcp_server [flags]`.

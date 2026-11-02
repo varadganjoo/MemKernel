@@ -1,0 +1,473 @@
+{
+  "method": "Three alternating runs per installed wheel; Python 3.11.0, same resolved dependencies, cl100k_base, 15 latency repetitions per run; Windows workstation. Median of per-run medians. Not a controlled device benchmark.",
+  "versions": {
+    "0.3.0": {
+      "append_events_per_second": 658.8459022745105,
+      "latency": [
+        {
+          "events": 1000,
+          "bulk_load_events_per_s": 1618.0821325806842,
+          "cold_open_ms": 16.335799999069422,
+          "context_fast_path_ms": 0.904199987417087,
+          "full_replay_ms": 13.382200006162748,
+          "fork_ms": 1.6776999982539564,
+          "fork_plus_rollback_ms": 12.730799993732944
+        },
+        {
+          "events": 5000,
+          "bulk_load_events_per_s": 1081.0767334004245,
+          "cold_open_ms": 22.918200003914535,
+          "context_fast_path_ms": 1.3418000016827136,
+          "full_replay_ms": 111.20699999446515,
+          "fork_ms": 3.577800001949072,
+          "fork_plus_rollback_ms": 106.27609999210108
+        }
+      ],
+      "token_workflows": [
+        {
+          "workflow": "single-agent-test-fix",
+          "events": 73,
+          "raw_tokens": 31346,
+          "memkernel_tokens": 3560,
+          "reduction": 0.8864288904485421,
+          "snapshots": 13,
+          "state_equivalent": true,
+          "tokenizer": "tiktoken:cl100k_base"
+        },
+        {
+          "workflow": "multi-agent-refactor",
+          "events": 99,
+          "raw_tokens": 33600,
+          "memkernel_tokens": 2363,
+          "reduction": 0.929672619047619,
+          "snapshots": 13,
+          "state_equivalent": true,
+          "tokenizer": "tiktoken:cl100k_base"
+        },
+        {
+          "workflow": "lint-heavy-exploration",
+          "events": 73,
+          "raw_tokens": 42445,
+          "memkernel_tokens": 3463,
+          "reduction": 0.9184120626693368,
+          "snapshots": 19,
+          "state_equivalent": true,
+          "tokenizer": "tiktoken:cl100k_base"
+        }
+      ],
+      "samples": [
+        {
+          "version": "0.3.0",
+          "python": "3.11.0 (main, Oct 24 2022, 18:26:48) [MSC v.1933 64 bit (AMD64)]",
+          "tokenizer": "tiktoken:cl100k_base",
+          "repeats": 15,
+          "savings": [
+            {
+              "workflow": "single-agent-test-fix",
+              "events": 73,
+              "raw_tokens": 31346,
+              "memkernel_tokens": 3560,
+              "reduction": 0.8864288904485421,
+              "snapshots": 13,
+              "state_equivalent": true,
+              "tokenizer": "tiktoken:cl100k_base"
+            },
+            {
+              "workflow": "multi-agent-refactor",
+              "events": 99,
+              "raw_tokens": 33600,
+              "memkernel_tokens": 2363,
+              "reduction": 0.929672619047619,
+              "snapshots": 13,
+              "state_equivalent": true,
+              "tokenizer": "tiktoken:cl100k_base"
+            },
+            {
+              "workflow": "lint-heavy-exploration",
+              "events": 73,
+              "raw_tokens": 42445,
+              "memkernel_tokens": 3463,
+              "reduction": 0.9184120626693368,
+              "snapshots": 19,
+              "state_equivalent": true,
+              "tokenizer": "tiktoken:cl100k_base"
+            }
+          ],
+          "latency": [
+            {
+              "events": 1000,
+              "bulk_load_events_per_s": 1728.240117545348,
+              "cold_open_ms": 16.335799999069422,
+              "context_fast_path_ms": 0.904199987417087,
+              "full_replay_ms": 13.382200006162748,
+              "fork_ms": 1.6776999982539564,
+              "fork_plus_rollback_ms": 12.13290001032874
+            },
+            {
+              "events": 5000,
+              "bulk_load_events_per_s": 1452.9727357224015,
+              "cold_open_ms": 24.20130000973586,
+              "context_fast_path_ms": 1.262500009033829,
+              "full_replay_ms": 111.20699999446515,
+              "fork_ms": 3.577800001949072,
+              "fork_plus_rollback_ms": 106.27609999210108
+            }
+          ],
+          "append_events_per_second": 739.1198235802696
+        },
+        {
+          "version": "0.3.0",
+          "python": "3.11.0 (main, Oct 24 2022, 18:26:48) [MSC v.1933 64 bit (AMD64)]",
+          "tokenizer": "tiktoken:cl100k_base",
+          "repeats": 15,
+          "savings": [
+            {
+              "workflow": "single-agent-test-fix",
+              "events": 73,
+              "raw_tokens": 31346,
+              "memkernel_tokens": 3560,
+              "reduction": 0.8864288904485421,
+              "snapshots": 13,
+              "state_equivalent": true,
+              "tokenizer": "tiktoken:cl100k_base"
+            },
+            {
+              "workflow": "multi-agent-refactor",
+              "events": 99,
+              "raw_tokens": 33599,
+              "memkernel_tokens": 2363,
+              "reduction": 0.9296705259085092,
+              "snapshots": 13,
+              "state_equivalent": true,
+              "tokenizer": "tiktoken:cl100k_base"
+            },
+            {
+              "workflow": "lint-heavy-exploration",
+              "events": 73,
+              "raw_tokens": 42445,
+              "memkernel_tokens": 3463,
+              "reduction": 0.9184120626693368,
+              "snapshots": 19,
+              "state_equivalent": true,
+              "tokenizer": "tiktoken:cl100k_base"
+            }
+          ],
+          "latency": [
+            {
+              "events": 1000,
+              "bulk_load_events_per_s": 1618.0821325806842,
+              "cold_open_ms": 18.243600003188476,
+              "context_fast_path_ms": 0.9191999997710809,
+              "full_replay_ms": 13.397200003964826,
+              "fork_ms": 1.5625000087311491,
+              "fork_plus_rollback_ms": 12.730799993732944
+            },
+            {
+              "events": 5000,
+              "bulk_load_events_per_s": 1081.0767334004245,
+              "cold_open_ms": 22.918200003914535,
+              "context_fast_path_ms": 1.5284999972209334,
+              "full_replay_ms": 109.22040000150446,
+              "fork_ms": 2.77950000599958,
+              "fork_plus_rollback_ms": 105.09140000795014
+            }
+          ],
+          "append_events_per_second": 658.8459022745105
+        },
+        {
+          "version": "0.3.0",
+          "python": "3.11.0 (main, Oct 24 2022, 18:26:48) [MSC v.1933 64 bit (AMD64)]",
+          "tokenizer": "tiktoken:cl100k_base",
+          "repeats": 15,
+          "savings": [
+            {
+              "workflow": "single-agent-test-fix",
+              "events": 73,
+              "raw_tokens": 31346,
+              "memkernel_tokens": 3560,
+              "reduction": 0.8864288904485421,
+              "snapshots": 13,
+              "state_equivalent": true,
+              "tokenizer": "tiktoken:cl100k_base"
+            },
+            {
+              "workflow": "multi-agent-refactor",
+              "events": 99,
+              "raw_tokens": 33599,
+              "memkernel_tokens": 2363,
+              "reduction": 0.9296705259085092,
+              "snapshots": 13,
+              "state_equivalent": true,
+              "tokenizer": "tiktoken:cl100k_base"
+            },
+            {
+              "workflow": "lint-heavy-exploration",
+              "events": 73,
+              "raw_tokens": 42445,
+              "memkernel_tokens": 3463,
+              "reduction": 0.9184120626693368,
+              "snapshots": 19,
+              "state_equivalent": true,
+              "tokenizer": "tiktoken:cl100k_base"
+            }
+          ],
+          "latency": [
+            {
+              "events": 1000,
+              "bulk_load_events_per_s": 1500.2386879698265,
+              "cold_open_ms": 14.56260000122711,
+              "context_fast_path_ms": 0.9034999966388568,
+              "full_replay_ms": 13.35379999363795,
+              "fork_ms": 1.8465999892214313,
+              "fork_plus_rollback_ms": 13.278999991598539
+            },
+            {
+              "events": 5000,
+              "bulk_load_events_per_s": 778.9165485788674,
+              "cold_open_ms": 21.63089999521617,
+              "context_fast_path_ms": 1.3418000016827136,
+              "full_replay_ms": 150.51389999280218,
+              "fork_ms": 4.900600004475564,
+              "fork_plus_rollback_ms": 125.28380000730976
+            }
+          ],
+          "append_events_per_second": 458.2769958169155
+        }
+      ]
+    },
+    "0.3.1": {
+      "append_events_per_second": 634.4548846122399,
+      "latency": [
+        {
+          "events": 1000,
+          "bulk_load_events_per_s": 1583.9657052568132,
+          "cold_open_ms": 22.13389999815263,
+          "context_fast_path_ms": 0.9721999958856031,
+          "full_replay_ms": 14.491299996734597,
+          "fork_ms": 3.158599996822886,
+          "fork_plus_rollback_ms": 20.60180000262335
+        },
+        {
+          "events": 5000,
+          "bulk_load_events_per_s": 1079.0279882819125,
+          "cold_open_ms": 19.279700005427003,
+          "context_fast_path_ms": 1.6271999920718372,
+          "full_replay_ms": 133.58709999010898,
+          "fork_ms": 3.3358000073349103,
+          "fork_plus_rollback_ms": 113.76700000255369
+        }
+      ],
+      "token_workflows": [
+        {
+          "workflow": "single-agent-test-fix",
+          "events": 73,
+          "raw_tokens": 31346,
+          "memkernel_tokens": 3560,
+          "reduction": 0.8864288904485421,
+          "snapshots": 13,
+          "state_equivalent": true,
+          "tokenizer": "tiktoken:cl100k_base"
+        },
+        {
+          "workflow": "multi-agent-refactor",
+          "events": 99,
+          "raw_tokens": 33597,
+          "memkernel_tokens": 2362,
+          "reduction": 0.9296961038187933,
+          "snapshots": 13,
+          "state_equivalent": true,
+          "tokenizer": "tiktoken:cl100k_base"
+        },
+        {
+          "workflow": "lint-heavy-exploration",
+          "events": 73,
+          "raw_tokens": 42445,
+          "memkernel_tokens": 3463,
+          "reduction": 0.9184120626693368,
+          "snapshots": 19,
+          "state_equivalent": true,
+          "tokenizer": "tiktoken:cl100k_base"
+        }
+      ],
+      "samples": [
+        {
+          "version": "0.3.1",
+          "python": "3.11.0 (main, Oct 24 2022, 18:26:48) [MSC v.1933 64 bit (AMD64)]",
+          "tokenizer": "tiktoken:cl100k_base",
+          "repeats": 15,
+          "savings": [
+            {
+              "workflow": "single-agent-test-fix",
+              "events": 73,
+              "raw_tokens": 31346,
+              "memkernel_tokens": 3560,
+              "reduction": 0.8864288904485421,
+              "snapshots": 13,
+              "state_equivalent": true,
+              "tokenizer": "tiktoken:cl100k_base"
+            },
+            {
+              "workflow": "multi-agent-refactor",
+              "events": 99,
+              "raw_tokens": 33597,
+              "memkernel_tokens": 2362,
+              "reduction": 0.9296961038187933,
+              "snapshots": 13,
+              "state_equivalent": true,
+              "tokenizer": "tiktoken:cl100k_base"
+            },
+            {
+              "workflow": "lint-heavy-exploration",
+              "events": 73,
+              "raw_tokens": 42445,
+              "memkernel_tokens": 3463,
+              "reduction": 0.9184120626693368,
+              "snapshots": 19,
+              "state_equivalent": true,
+              "tokenizer": "tiktoken:cl100k_base"
+            }
+          ],
+          "latency": [
+            {
+              "events": 1000,
+              "bulk_load_events_per_s": 1583.9657052568132,
+              "cold_open_ms": 18.463600004906766,
+              "context_fast_path_ms": 0.9721999958856031,
+              "full_replay_ms": 14.491299996734597,
+              "fork_ms": 3.8819000037619844,
+              "fork_plus_rollback_ms": 27.10569999180734
+            },
+            {
+              "events": 5000,
+              "bulk_load_events_per_s": 1069.1237010974476,
+              "cold_open_ms": 19.279700005427003,
+              "context_fast_path_ms": 1.0302000009687617,
+              "full_replay_ms": 137.29110000713263,
+              "fork_ms": 2.29800000670366,
+              "fork_plus_rollback_ms": 64.33540000580251
+            }
+          ],
+          "append_events_per_second": 1015.4139842986089
+        },
+        {
+          "version": "0.3.1",
+          "python": "3.11.0 (main, Oct 24 2022, 18:26:48) [MSC v.1933 64 bit (AMD64)]",
+          "tokenizer": "tiktoken:cl100k_base",
+          "repeats": 15,
+          "savings": [
+            {
+              "workflow": "single-agent-test-fix",
+              "events": 73,
+              "raw_tokens": 31346,
+              "memkernel_tokens": 3560,
+              "reduction": 0.8864288904485421,
+              "snapshots": 13,
+              "state_equivalent": true,
+              "tokenizer": "tiktoken:cl100k_base"
+            },
+            {
+              "workflow": "multi-agent-refactor",
+              "events": 99,
+              "raw_tokens": 33598,
+              "memkernel_tokens": 2363,
+              "reduction": 0.9296684326448003,
+              "snapshots": 13,
+              "state_equivalent": true,
+              "tokenizer": "tiktoken:cl100k_base"
+            },
+            {
+              "workflow": "lint-heavy-exploration",
+              "events": 73,
+              "raw_tokens": 42445,
+              "memkernel_tokens": 3463,
+              "reduction": 0.9184120626693368,
+              "snapshots": 19,
+              "state_equivalent": true,
+              "tokenizer": "tiktoken:cl100k_base"
+            }
+          ],
+          "latency": [
+            {
+              "events": 1000,
+              "bulk_load_events_per_s": 1598.9048141581472,
+              "cold_open_ms": 22.941199989872985,
+              "context_fast_path_ms": 0.8550999918952584,
+              "full_replay_ms": 12.748000008286908,
+              "fork_ms": 1.6269999905489385,
+              "fork_plus_rollback_ms": 12.15869998850394
+            },
+            {
+              "events": 5000,
+              "bulk_load_events_per_s": 1225.789192499465,
+              "cold_open_ms": 21.05640000081621,
+              "context_fast_path_ms": 1.6271999920718372,
+              "full_replay_ms": 133.1683000025805,
+              "fork_ms": 4.089399997610599,
+              "fork_plus_rollback_ms": 117.1089999988908
+            }
+          ],
+          "append_events_per_second": 634.4548846122399
+        },
+        {
+          "version": "0.3.1",
+          "python": "3.11.0 (main, Oct 24 2022, 18:26:48) [MSC v.1933 64 bit (AMD64)]",
+          "tokenizer": "tiktoken:cl100k_base",
+          "repeats": 15,
+          "savings": [
+            {
+              "workflow": "single-agent-test-fix",
+              "events": 73,
+              "raw_tokens": 31346,
+              "memkernel_tokens": 3560,
+              "reduction": 0.8864288904485421,
+              "snapshots": 13,
+              "state_equivalent": true,
+              "tokenizer": "tiktoken:cl100k_base"
+            },
+            {
+              "workflow": "multi-agent-refactor",
+              "events": 99,
+              "raw_tokens": 33599,
+              "memkernel_tokens": 2363,
+              "reduction": 0.9296705259085092,
+              "snapshots": 13,
+              "state_equivalent": true,
+              "tokenizer": "tiktoken:cl100k_base"
+            },
+            {
+              "workflow": "lint-heavy-exploration",
+              "events": 73,
+              "raw_tokens": 42445,
+              "memkernel_tokens": 3463,
+              "reduction": 0.9184120626693368,
+              "snapshots": 19,
+              "state_equivalent": true,
+              "tokenizer": "tiktoken:cl100k_base"
+            }
+          ],
+          "latency": [
+            {
+              "events": 1000,
+              "bulk_load_events_per_s": 889.1712106269068,
+              "cold_open_ms": 22.13389999815263,
+              "context_fast_path_ms": 1.8884000019170344,
+              "full_replay_ms": 23.68880000722129,
+              "fork_ms": 3.158599996822886,
+              "fork_plus_rollback_ms": 20.60180000262335
+            },
+            {
+              "events": 5000,
+              "bulk_load_events_per_s": 1079.0279882819125,
+              "cold_open_ms": 18.35279999068007,
+              "context_fast_path_ms": 1.7608999914955348,
+              "full_replay_ms": 133.58709999010898,
+              "fork_ms": 3.3358000073349103,
+              "fork_plus_rollback_ms": 113.76700000255369
+            }
+          ],
+          "append_events_per_second": 530.6760473176553
+        }
+      ]
+    }
+  }
+}
