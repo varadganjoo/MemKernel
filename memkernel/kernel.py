@@ -14,7 +14,7 @@ import os
 import posixpath
 import time
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 from pydantic import BaseModel
 
@@ -338,6 +338,25 @@ class MemKernel:
                 "next_offset": offset + len(selected) if selected and remaining else None,
                 "requires_larger_budget": bool(remaining and not selected)}
         return selected, page, _render_notices(selected, page["omitted"])
+
+    async def lookup_memory(self, key: str, *, kind: Literal["decision", "fact"] = "decision",
+                            branch_id: str = DEFAULT_BRANCH) -> dict[str, Any]:
+        """Return one current record with provenance, or ``record=None`` if absent.
+
+        Keys are exact and case-sensitive. This omits coordination notices,
+        blockers and other memory; use query_state before starting work.
+        """
+        if kind not in ("decision", "fact"):
+            raise ValueError("kind must be 'decision' or 'fact'")
+        if not isinstance(key, str):
+            raise ValueError("key must be a string")
+        context = await self.store.context_events(branch_id)
+        state = materialize(context.delta, seed=context.snapshot)
+        records = state.decisions if kind == "decision" else state.active_workspace_facts
+        record = records.get(key)
+        return {"branch_id": branch_id, "head_event_id": context.head_event_id,
+                "kind": kind, "key": key,
+                "record": record.model_dump(mode="json") if record is not None else None}
 
     async def query_state(self, branch_id: str = DEFAULT_BRANCH, *, include_ephemeral: bool = False,
                           notice_resource: str | None = None, notice_token_budget: int = 1000,

@@ -180,9 +180,27 @@ Cleared tombstones are retained; capacity and recovery procedures are in the tea
 
 ## MCP tools
 
+In the unreleased development version, use `memkernel_lookup_memory` for follow-up
+questions when you already know a decision or fact key. For example,
+`memkernel_lookup_memory(key="test.database")` returns that decision's current
+value, rationale, author, source event and superseded event ID. Facts use
+`kind="fact"`; keys are matched exactly, including whitespace. In Python use
+`await client.lookup_memory("test.database")` or
+`await kernel.lookup_memory("test.database", branch_id="main")`.
+
+This reads the same materialized state as full recall. It excludes superseded and
+rolled-back records and survives compaction. `record: null` means absent, while a
+missing branch is an error. A source event identifies an assertion, not proof of
+its truth or freshness; `head_event_id` identifies the state read. This tool omits
+notices, blockers and all other memory. Continue calling `query_state` at startup
+and check coordination before overlapping work. It reduces returned context but
+still materializes branch state; a large individual record can produce a large
+response. It does not discover unknown keys or perform semantic search.
+
 | Tool | Purpose |
 |---|---|
 | `memkernel_query_state(branch_id=None, include_ephemeral=False)` | Consolidated memory as JSON: tasks, decisions, workspace facts, deprecated assumptions, blockers, claims, leases, coordination notices, recent events. Defaults to the session's active branch. Pass `"main"` explicitly to inspect main. |
+| `memkernel_lookup_memory(key, kind="decision", branch_id=None)` | One current decision or fact by exact, case-sensitive key, including author and source event. Defaults to the active branch. `record: null` means absent; `record.value: null` is an existing null-valued fact. Omits all other memory, notices and blockers. |
 | `memkernel_post_notice(resource, message, ttl_seconds=3600)` | Post a workspace-wide advisory. Expiry marks it stale. |
 | `memkernel_clear_notice(notice_id)` | Explicitly clear your notice when finished. |
 | `memkernel_list_notices(resource=None, include_cleared=False)` | Inspect active and stale notices, optionally cleared history. |
