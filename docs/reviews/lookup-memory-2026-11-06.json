@@ -1,0 +1,55 @@
+{
+  "python": "3.11.0",
+  "mcp": "2.3.0",
+  "tokenizer": "tiktoken:cl100k_base",
+  "questions": 20,
+  "decision_keys": 100,
+  "revisions_per_key": 2,
+  "phases": {
+    "raw": {
+      "memkernel_query_state": {
+        "correct": 20,
+        "mean_result_bytes": 128055,
+        "mean_result_tokens": 36303,
+        "mean_text_content_tokens": 15929,
+        "median_ms": 14.275
+      },
+      "memkernel_lookup_memory": {
+        "correct": 20,
+        "mean_result_bytes": 749.1,
+        "mean_result_tokens": 230,
+        "mean_text_content_tokens": 100,
+        "median_ms": 8.599
+      }
+    },
+    "compacted": {
+      "memkernel_query_state": {
+        "correct": 20,
+        "mean_result_bytes": 74921,
+        "mean_result_tokens": 22703,
+        "mean_text_content_tokens": 9729,
+        "median_ms": 10.701
+      },
+      "memkernel_lookup_memory": {
+        "correct": 20,
+        "mean_result_bytes": 749.1,
+        "mean_result_tokens": 230,
+        "mean_text_content_tokens": 100,
+        "median_ms": 5.918
+      }
+    }
+  },
+  "gc": {
+    "branch_id": "main",
+    "triggered": true,
+    "reason": "compacted",
+    "tokens_before": 24963,
+    "tokens_after": 12662,
+    "reduction_ratio": 0.4928,
+    "compacted_event_count": 200,
+    "retained_event_count": 0,
+    "snapshot_event_id": 201,
+    "summarizer": "heuristic",
+    "tokenizer": "heuristic"
+  }
+}

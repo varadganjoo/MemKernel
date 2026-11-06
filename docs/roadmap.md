@@ -32,6 +32,13 @@ Memory retrieval should work offline without a hosted embedding service.
 
 ## What to try first
 
+The November 6 weekly development patch adds exact-key lookup as a first,
+independently useful part of selective recall. A synthetic experiment found that
+compaction alone still returned every durable decision for a one-key question.
+See the [discovery and measurements](reviews/weekly-2026-11-06.md). This is an
+unreleased development change; task ranking, unknown-key discovery, budgets,
+freshness evaluation and relevant-blocker selection remain open.
+
 Build the compact recall prototype and run the same 20 representative tasks with
 and without it. Require correct source retrieval and smaller responses, then use
 the results to decide whether embeddings or a more elaborate ranking layer are

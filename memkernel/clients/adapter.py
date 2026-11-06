@@ -16,7 +16,7 @@ import os
 import sys
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Literal
 
 from memkernel.core.events import EventEnvelope, EventType, new_event, validate_agent_id, validate_branch_id
 from memkernel.kernel import DEFAULT_BRANCH, LeaseGrant, MemKernel
@@ -105,6 +105,11 @@ class MemKernelClient:
 
     async def query_state(self, *, include_ephemeral: bool = False, branch: str | None = None) -> dict[str, Any]:
         return await self.kernel.query_state(branch or self.branch, include_ephemeral=include_ephemeral)
+
+    async def lookup_memory(self, key: str, *, kind: Literal["decision", "fact"] = "decision",
+                            branch: str | None = None) -> dict[str, Any]:
+        """Read a known key on the active branch (or an explicit branch)."""
+        return await self.kernel.lookup_memory(key, kind=kind, branch_id=self.branch if branch is None else branch)
 
     async def context(self, branch: str | None = None) -> str:
         return await self.kernel.context(branch or self.branch)

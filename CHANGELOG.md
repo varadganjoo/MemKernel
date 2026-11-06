@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Add `memkernel_lookup_memory` and Python `lookup_memory` for exact-key recall of
+  one current decision or fact with its author and source event. Reads follow
+  active branches, compaction and rollback, and work in read-only sessions.
+  Startup and coordination checks still require `query_state`/notice tools.
+
 ## 0.3.1
 
 - Reject snapshots that erase or change covered state or its provenance.
