@@ -159,6 +159,10 @@ connected agent can query the same database on that computer too.
 
 ## What it gives you
 
+The unreleased development version also provides verified local online backups.
+See [backup instructions and recovery limits](docs/backup.md) before copying a
+live database. A plain main-file copy can omit committed memory held in the WAL.
+
 | Capability | What it means in practice |
 |---|---|
 | Persistent decisions | Keep a decision and its rationale available across sessions. |

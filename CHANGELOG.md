@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Add operator-only `memkernel backup DESTINATION` for verified online backups
+  that include committed WAL data while agents remain connected. Source opens
+  read-only; a private, verified standalone copy is published without replacing
+  an existing file. See [backup and recovery limits](docs/backup.md).
+
 ## 0.3.1
 
 - Reject snapshots that erase or change covered state or its provenance.

@@ -3,6 +3,7 @@
     memkernel attach claude-code        # or cursor | codex | antigravity | all
     memkernel doctor                    # end-to-end health check
     memkernel status                    # what the agents currently remember
+    memkernel backup private-copy.db    # online backup into a new local file
     memkernel serve                     # run the MCP server (what agents launch)
 """
 
@@ -403,6 +404,11 @@ def main(argv: list[str] | None = None) -> int:
     p_status.add_argument("--branch", default=DEFAULT_BRANCH)
     p_status.add_argument("--json", action="store_true")
 
+    p_backup = sub.add_parser("backup", help="verify and back up live memory into a new private local file")
+    p_backup.add_argument("destination", type=Path)
+    p_backup.add_argument("--project", type=Path, default=Path.cwd())
+    p_backup.add_argument("--db", type=Path, help="source database (default: project discovery / MEMKERNEL_DB)")
+
     sub.add_parser("sync", help="configure signed folder exchange (see `memkernel sync --help`)", add_help=False)
 
     sub.add_parser("serve", help="run the MCP server over stdio (flags: see `memkernel serve --help`)", add_help=False)
@@ -419,6 +425,20 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     args = parser.parse_args(argv)
     home = Path.home()
+
+    if args.command == "backup":
+        import sqlite3
+
+        from memkernel.backup import backup_database
+        from memkernel.core.store import StoreError
+
+        try:
+            result = asyncio.run(backup_database(args.db or default_db_path(args.project), args.destination))
+        except (OSError, ValueError, sqlite3.Error, StoreError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        print(f"Backup verified: {result['destination']} ({result['branches']} branches)")
+        return 0
 
     if args.command == "attach":
         names = list(CLIENTS) if "all" in args.clients else list(dict.fromkeys(args.clients))
