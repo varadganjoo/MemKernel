@@ -1,0 +1,66 @@
+{
+  "python": "3.11.0",
+  "platform": "Windows",
+  "sqlite": "3.38.4",
+  "mode": "WAL; agent connection held open",
+  "runs": [
+    {
+      "source_events": 20,
+      "plain_copy": {
+        "integrity": "ok",
+        "events": 0
+      },
+      "online_backup": {
+        "integrity": "ok",
+        "events": 20
+      }
+    },
+    {
+      "source_events": 20,
+      "plain_copy": {
+        "integrity": "ok",
+        "events": 0
+      },
+      "online_backup": {
+        "integrity": "ok",
+        "events": 20
+      }
+    },
+    {
+      "source_events": 20,
+      "plain_copy": {
+        "integrity": "ok",
+        "events": 0
+      },
+      "online_backup": {
+        "integrity": "ok",
+        "events": 20
+      }
+    },
+    {
+      "source_events": 20,
+      "plain_copy": {
+        "integrity": "ok",
+        "events": 0
+      },
+      "online_backup": {
+        "integrity": "ok",
+        "events": 20
+      }
+    },
+    {
+      "source_events": 20,
+      "plain_copy": {
+        "integrity": "ok",
+        "events": 0
+      },
+      "online_backup": {
+        "integrity": "ok",
+        "events": 20
+      }
+    }
+  ],
+  "plain_retained_events": 0,
+  "online_retained_events": 100,
+  "expected_events": 100
+}
